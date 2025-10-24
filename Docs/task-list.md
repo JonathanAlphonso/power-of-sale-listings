@@ -2,15 +2,15 @@
 
 ## M0 – Foundation Ready
 
-- [ ] Verify local tooling (`php`, `node`, `npm`, `mysql`) meets project version constraints and document prerequisites.
-- [ ] Run `composer install` and `npm install`; confirm `php artisan serve` and `npm run dev` start without errors.
-- [ ] Configure `.env.example` with required keys (database, mail, queue, storage) and add any missing placeholders.
-- [ ] Ensure database connection defaults allow local development (SQLite fallback or MySQL credentials) and capture steps in README.
-- [ ] Set up database queue and cache tables via Artisan migrations; seed initial Fortify configuration values if needed.
-- [ ] Establish primary Volt + Flux layout shell (navigation, header, footer) and wire it into the welcome/dashboard views.
-- [ ] Enable Tailwind 4 build pipeline with Vite, confirming hot reloading and production builds output expected assets.
-- [ ] Create CI workflow that runs `composer test`, `npm run build`, and `vendor/bin/pint --dirty` on pull requests.
-- [ ] Document setup workflow and troubleshooting tips in README and `docs/runbook.md`.
+- [x] Verify local tooling (`php`, `node`, `npm`, `mysql`) meets project version constraints and document prerequisites.
+- [x] Run `composer install` and `npm install`; confirm `php artisan serve` and `npm run dev` start without errors.
+- [x] Configure `.env.example` with required keys (database, mail, queue, storage) and add any missing placeholders.
+- [x] Ensure database connection defaults allow local development with MySQL credentials and capture steps in README.
+- [x] Set up database queue and cache tables via Artisan migrations; seed initial Fortify configuration values if needed.
+- [x] Establish primary Volt + Flux layout shell (navigation, header, footer) and wire it into the welcome/dashboard views.
+- [x] Enable Tailwind 4 build pipeline with Vite, confirming hot reloading and production builds output expected assets.
+- [x] Create CI workflow that runs `composer test`, `npm run build`, and `vendor/bin/pint --dirty` on pull requests.
+- [x] Document setup workflow and troubleshooting tips in README and `docs/runbook.md`.
 
 ## M1 – Data Model & Admin Shell
 

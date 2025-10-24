@@ -10,6 +10,15 @@
 - **Observability:** Laravel logging plus Laravel Pail for local log tailing. Expand to hosted error tracking or metrics (Sentry, OpenTelemetry) only after a written proposal and approval.
 - **Testing & Tooling:** Pest 3 for all tests, Laravel Pint for formatting, GitHub Actions (or equivalent) for CI running `composer test` and `npm run build`. Treat Tinker as a local-only tool.
 
+## Local Tooling Prerequisites
+
+The starter kit has been validated on WSL with the following versions; ensure local environments meet or exceed them before running the project commands listed below:
+
+- **PHP 8.3.26** — satisfies the Laravel 12 requirement of PHP ≥ 8.2 (`php -v`).
+- **Node.js 20.19.5** — Vite 7 and Tailwind CSS 4 require Node ≥ 18 (`node -v`).
+- **npm 11.6.2** — ships with Node 20 and supports the Vite pipeline (`npm -v`).
+- **MySQL 8.0.43** — aligns with the MySQL 8 baseline captured in this build plan (`mysql --version`).
+
 ## Delivery Milestones
 
 | Milestone | Duration | Objectives | Acceptance Evidence |

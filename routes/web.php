@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Listing;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,8 @@ Route::get('/', function () {
     $tableSample = [];
     $userCount = null;
     $errorMessage = null;
+    $sampleListings = collect();
+    $listingsTableExists = false;
 
     try {
         $connection = DB::connection();
@@ -21,13 +24,32 @@ Route::get('/', function () {
         $connected = true;
         $databaseName = $connection->getDatabaseName();
 
-        $tableSample = collect($connection->select('SHOW TABLES'))
-            ->map(fn ($row) => collect($row)->first())
+        $tableSample = (match ($connection->getDriverName()) {
+            'sqlite' => collect(
+                $connection->select("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"),
+            )->pluck('name'),
+            'pgsql' => collect(
+                $connection->select("SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'"),
+            )->pluck('name'),
+            'sqlsrv' => collect(
+                $connection->select('SELECT TABLE_NAME AS name FROM INFORMATION_SCHEMA.TABLES'),
+            )->pluck('name'),
+            default => collect($connection->select('SHOW TABLES'))->map(fn ($row) => collect($row)->first()),
+        })
             ->take(5)
             ->all();
 
         if (Schema::hasTable((new User)->getTable())) {
             $userCount = User::count();
+        }
+
+        if (Schema::hasTable((new Listing)->getTable())) {
+            $listingsTableExists = true;
+            $sampleListings = Listing::query()
+                ->with(['source', 'municipality', 'media'])
+                ->latest('modified_at')
+                ->limit(3)
+                ->get();
         }
     } catch (\Throwable $exception) {
         $connected = false;
@@ -40,6 +62,8 @@ Route::get('/', function () {
         'tableSample' => $tableSample,
         'userCount' => $userCount,
         'dbErrorMessage' => $errorMessage,
+        'sampleListings' => $sampleListings,
+        'listingsTableExists' => $listingsTableExists,
     ]);
 })->name('home');
 

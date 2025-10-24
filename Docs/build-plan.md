@@ -37,6 +37,12 @@ The starter kit has been validated on WSL with the following versions; ensure lo
 - **Front-End Patterns:** Reuse Flux UI tables, forms, and modals before creating bespoke components. Ensure Tailwind tokens support dark mode toggled through the appearance settings Volt page.
 - **Testing Strategy:** Expand Pest coverage with datasets for validation scenarios, Volt::test for interactive components, and HTTP tests for public endpoints. Keep factories up-to-date with edge cases (missing price, conditional statuses).
 
+### Deferred Security Follow-ups (currently local-only)
+
+- Promote `App\Models\User` to implement `MustVerifyEmail`, enable Fortify’s email verification feature, and end-to-end test the verification gate before any shared deployment.
+- Remove or feature-flag the database diagnostics and live listing previews on the `welcome` route so they can’t leak data when the app leaves the local environment.
+- Replace seeded/demo passwords and committed `.env` secrets with environment-scoped values; document the rotation workflow to prevent predictable credentials in non-local stacks.
+
 ## Documentation & Handoff
 
 - Maintain `docs/runbook.md` with environment setup, scheduled jobs, import instructions, and escalation contacts.

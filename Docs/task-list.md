@@ -14,9 +14,9 @@
 
 ## M1 – Data Model & Admin Shell
 
-- [ ] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
-- [ ] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
-- [ ] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
+- [x] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
+- [x] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
+- [x] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
 - [ ] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
 - [ ] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
 - [ ] Implement authorization policies and gates for admin-only actions; ensure policy tests cover allow/deny paths.
@@ -70,3 +70,6 @@
 - [ ] Track technical debt items in backlog (temporary flags, manual migrations, future Redis adoption).
 - [ ] Prepare admin training materials (written walkthrough or video) once dashboards and workflows stabilize.
 - [ ] Schedule regular QA cycles covering accessibility, browser/device matrix, and data accuracy spot checks.
+- [ ] Wire up Fortify email verification end-to-end (model implements `MustVerifyEmail`, feature enabled, tests updated) ahead of any non-local deployment.
+- [ ] Gate or remove the public database diagnostics/listing samples on `welcome.blade.php` before exposing the app outside local development.
+- [ ] Replace demo credentials and committed secrets (`.env`, seeded passwords) with environment-specific values and document the rotation/override process.

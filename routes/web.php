@@ -67,12 +67,37 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::view('dashboard', 'dashboard')
+Route::get('dashboard', function () {
+    $totalListings = Listing::query()->count();
+    $availableListings = Listing::query()
+        ->where('display_status', 'Available')
+        ->count();
+    $rentalListings = Listing::query()
+        ->where('sale_type', 'RENT')
+        ->count();
+    $averageListPrice = Listing::query()->avg('list_price');
+    $recentListings = Listing::query()
+        ->with(['municipality:id,name', 'source:id,name'])
+        ->latest('modified_at')
+        ->limit(5)
+        ->get();
+
+    return view('dashboard', [
+        'totalListings' => $totalListings,
+        'availableListings' => $availableListings,
+        'rentalListings' => $rentalListings,
+        'averageListPrice' => $averageListPrice,
+        'recentListings' => $recentListings,
+    ]);
+})
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
+
+    Volt::route('admin/listings', 'admin.listings.index')
+        ->name('admin.listings.index');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
     Volt::route('settings/password', 'settings.password')->name('password.edit');

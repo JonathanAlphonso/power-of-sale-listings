@@ -1,21 +1,6 @@
 <x-layouts.site :title="__('Dashboard')">
     @php
-        $statusBadgeColor = static function (?string $status): string {
-            $normalized = strtolower((string) $status);
-
-            return match (true) {
-                str_contains($normalized, 'available') => 'green',
-                str_contains($normalized, 'conditional') => 'amber',
-                str_contains($normalized, 'sold') => 'red',
-                str_contains($normalized, 'suspend') => 'zinc',
-                default => 'blue',
-            };
-        };
-
         $formatCount = static fn (int|float|null $value): string => number_format((int) ($value ?? 0));
-        $formatCurrency = static fn (int|float|null $value): string => $value !== null
-            ? '$' . number_format((float) $value, 0)
-            : __('N/A');
     @endphp
 
     <section class="mx-auto max-w-6xl px-6 py-12 lg:px-8">
@@ -81,7 +66,7 @@
                         {{ __('Average list price') }}
                     </p>
                     <p class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-white">
-                        {{ $formatCurrency($averageListPrice) }}
+                        {{ \App\Support\ListingPresentation::currency($averageListPrice) }}
                     </p>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         {{ __('Mean asking price across all listings.') }}
@@ -120,12 +105,12 @@
                                 </div>
 
                                 <div class="flex flex-col items-start gap-2 text-sm md:items-end">
-                                    <flux:badge color="{{ $statusBadgeColor($listing->display_status) }}">
+                                    <flux:badge color="{{ \App\Support\ListingPresentation::statusBadge($listing->display_status) }}">
                                         {{ $listing->display_status ?? __('Unknown') }}
                                     </flux:badge>
 
                                     <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                        {{ $formatCurrency($listing->list_price) }}
+                                        {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
                                     </p>
                                     <p class="text-xs text-zinc-500 dark:text-zinc-400">
                                         {{ optional($listing->modified_at)?->diffForHumans() ?? __('No update timestamp') }}

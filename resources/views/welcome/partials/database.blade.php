@@ -1,14 +1,14 @@
-<section id="database" class="border-t border-slate-200 bg-white px-6 py-24 lg:px-8">
+<section id="database" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-white px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
-        <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+        <x-ui.card>
+            <div class="flex flex-wrap items-start justify-between gap-6">
                 <div>
                     <h2 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Database diagnostics</h2>
                     <p class="mt-2 text-sm text-slate-600">A quick snapshot of the current MySQL connection powering this page.</p>
                 </div>
-                <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] {{ $dbConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-red-200 bg-red-50 text-red-600' }}">
+                <x-ui.section-badge :variant="$dbConnected ? 'success' : 'danger'">
                     {{ $dbConnected ? 'Connected' : 'Disconnected' }}
-                </span>
+                </x-ui.section-badge>
             </div>
 
             @if ($dbConnected)
@@ -45,6 +45,6 @@
                     @endif
                 </div>
             @endif
-        </div>
+        </x-ui.card>
     </div>
 </section>

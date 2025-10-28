@@ -2,26 +2,26 @@
     <div class="mx-auto max-w-6xl">
         <div class="grid gap-12 lg:grid-cols-[1.25fr_1fr] lg:items-center">
             <div class="space-y-6">
-                <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Platform</span>
+                <x-ui.section-badge>Platform</x-ui.section-badge>
                 <h2 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Purpose-built for lenders, brokers, and compliance</h2>
                 <p class="text-lg text-slate-600">We blend dedicated ingestion jobs, Volt-driven review workflows, and real-time monitoring to surface power of sale insights precisely when your team needs them.</p>
-                <ul class="space-y-4 text-sm text-slate-600">
+                                <ul class="space-y-4 text-sm text-slate-600">
                     <li class="flex items-start gap-3">
-                        <flux:icon.check-badge class="mt-0.5 text-red-500"/>
+                        <flux:icon.check-badge class="mt-0.5 shrink-0 text-red-500"/>
                         <div>
                             <p class="font-semibold text-slate-900">Canadian-first ingestion</p>
-                            <p>Curated MLS boards, lender disclosures, and legal notices, normalized to Ontario’s regulatory landscape.</p>
+                            <p>Curated MLS boards, lender disclosures, and legal notices, normalized to Ontario's regulatory landscape.</p>
                         </div>
                     </li>
                     <li class="flex items-start gap-3">
-                        <flux:icon.shield-check class="mt-0.5 text-blue-500"/>
+                        <flux:icon.shield-check class="mt-0.5 shrink-0 text-blue-500"/>
                         <div>
                             <p class="font-semibold text-slate-900">Audit-ready history</p>
                             <p>Every change, from status updates to pricing adjustments, captured with payloads and timestamps for discovery.</p>
                         </div>
                     </li>
                     <li class="flex items-start gap-3">
-                        <flux:icon.sparkles class="mt-0.5 text-emerald-500"/>
+                        <flux:icon.sparkles class="mt-0.5 shrink-0 text-emerald-500"/>
                         <div>
                             <p class="font-semibold text-slate-900">Operational velocity</p>
                             <p>Flux UI dashboards, queue monitoring, and notifications keep analysts, brokers, and counsel synchronous.</p>

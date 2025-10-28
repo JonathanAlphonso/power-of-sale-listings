@@ -1,6 +1,11 @@
 <section id="cta" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-gradient-to-r from-[#fff5f5] via-white to-[#f3f7ff] px-6 py-24 lg:px-8">
-    <div class="mx-auto max-w-4xl rounded-3xl border border-red-100 bg-white p-12 text-center shadow-[0_25px_70px_rgba(217,4,41,0.12)]">
-        <span class="inline-flex items-center gap-2 rounded-full border border-red-100 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-red-500">Partner Program</span>
+    @php
+        $hasLogin = Route::has('login');
+        $hasRegister = Route::has('register');
+    @endphp
+
+    <x-ui.card variant="red" padding="p-12" class="mx-auto max-w-4xl text-center shadow-[0_25px_70px_rgba(217,4,41,0.12)]">
+        <x-ui.section-badge variant="red">Partner Program</x-ui.section-badge>
         <h2 class="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Ready to shape the future of Ontario power of sale intelligence?</h2>
         <p class="mt-4 text-lg text-slate-600">Become an early design partner to influence workflows, data coverage, and automated diligence before launch.</p>
         <div class="mt-10 flex flex-wrap justify-center gap-4">
@@ -14,5 +19,5 @@
                 <a href="mailto:hello@powerofsale.ca" class="rounded-full bg-[#d90429] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#b90322]">Contact us</a>
             @endif
         </div>
-    </div>
+    </x-ui.card>
 </section>

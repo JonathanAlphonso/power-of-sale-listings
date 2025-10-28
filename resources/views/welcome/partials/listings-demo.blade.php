@@ -1,8 +1,8 @@
-<section id="listings-demo" class="border-t border-slate-200 bg-[#f8fbff] px-6 py-24 lg:px-8">
+<section id="listings-demo" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-[#f8fbff] px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
-        <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-6">
             <div>
-                <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Live Demo</span>
+                <x-ui.section-badge>Live Demo</x-ui.section-badge>
                 <h2 class="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Recent demo listings</h2>
                 <p class="mt-2 text-sm text-slate-600">Pulled directly from the application database to verify ingestion pipelines end-to-end.</p>
             </div>

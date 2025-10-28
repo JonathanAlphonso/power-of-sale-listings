@@ -1,0 +1,15 @@
+Property?
+$filter=PublicRemarks ne null and (
+  contains(PublicRemarks,'power of sale') or
+  contains(PublicRemarks,'Power of Sale') or
+  contains(PublicRemarks,'POWER OF SALE') or
+  contains(PublicRemarks,'Power-of-Sale') or
+  contains(PublicRemarks,'Power-of-sale') or
+  contains(PublicRemarks,'P.O.S') or
+  contains(PublicRemarks,' POS ') or
+  contains(PublicRemarks,' POS,') or
+  contains(PublicRemarks,' POS.') or
+  contains(PublicRemarks,' POS-')
+)
+&$orderby=ModificationTimestamp desc
+&$top=50

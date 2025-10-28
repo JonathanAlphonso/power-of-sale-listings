@@ -1,4 +1,4 @@
-<section id="cta" class="border-t border-slate-200 bg-gradient-to-r from-[#fff5f5] via-white to-[#f3f7ff] px-6 py-24 lg:px-8 scroll-mt-32">
+<section id="cta" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-gradient-to-r from-[#fff5f5] via-white to-[#f3f7ff] px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-4xl rounded-3xl border border-red-100 bg-white p-12 text-center shadow-[0_25px_70px_rgba(217,4,41,0.12)]">
         <span class="inline-flex items-center gap-2 rounded-full border border-red-100 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-red-500">Partner Program</span>
         <h2 class="mt-4 text-3xl font-semibold text-slate-900 sm:text-4xl">Ready to shape the future of Ontario power of sale intelligence?</h2>

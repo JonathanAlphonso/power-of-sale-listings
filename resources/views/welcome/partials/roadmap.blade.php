@@ -1,4 +1,4 @@
-<section id="roadmap" class="border-t border-slate-200 bg-white px-6 py-24 lg:px-8 scroll-mt-32">
+<section id="roadmap" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-white px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
         <div class="max-w-3xl">
             <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">Roadmap</span>

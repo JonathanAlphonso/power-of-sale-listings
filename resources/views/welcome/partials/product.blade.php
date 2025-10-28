@@ -1,4 +1,4 @@
-<section id="product" class="border-t border-slate-200 bg-gradient-to-br from-white via-[#fff5f5] to-[#f3f7ff] px-6 py-24 lg:px-8 scroll-mt-32">
+<section id="product" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-gradient-to-br from-white via-[#fff5f5] to-[#f3f7ff] px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
         <div class="grid gap-12 lg:grid-cols-[1.25fr_1fr] lg:items-center">
             <div class="space-y-6">

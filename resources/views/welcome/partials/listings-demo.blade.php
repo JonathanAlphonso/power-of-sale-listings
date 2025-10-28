@@ -1,4 +1,4 @@
-<section id="listings-demo" class="border-t border-slate-200 bg-[#f8fbff] px-6 py-24 lg:px-8 scroll-mt-32">
+<section id="listings-demo" class="border-t border-slate-200 bg-[#f8fbff] px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div>

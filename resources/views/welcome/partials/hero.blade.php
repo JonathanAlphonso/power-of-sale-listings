@@ -1,6 +1,12 @@
-<section id="hero" class="px-6 pb-24 pt-20 sm:pt-28 lg:px-8 scroll-mt-32">
-    <div class="mx-auto max-w-6xl">
-        <div class="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/95 px-6 py-14 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)] sm:px-10 lg:px-16">
+<section id="hero" class="relative z-0 overflow-hidden px-6 pb-24 pt-10 sm:pt-6 lg:px-8">
+    <div class="pointer-events-none absolute inset-0 -z-10">
+        <div class="absolute -left-40 top-[-18rem] h-[28rem] w-[28rem] rounded-full bg-[#ffeadb]/60 blur-3xl"></div>
+        <div class="absolute bottom-[-16rem] right-[-10rem] h-[30rem] w-[30rem] rounded-full bg-[#d5e6ff]/60 blur-3xl"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.08),_transparent_60%)]"></div>
+    </div>
+
+    <div class="relative z-10 mx-auto max-w-6xl">
+        <div class="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/95 px-6 py-12 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)] sm:px-10 lg:px-16">
             <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_left,_rgba(217,4,41,0.15),_transparent_55%)] sm:block"></div>
             <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.14),_transparent_60%)] sm:block"></div>
             <div class="relative">

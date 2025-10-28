@@ -1,4 +1,4 @@
-<section id="tech" class="border-t border-slate-200 bg-white px-6 py-24 lg:px-8 scroll-mt-32">
+<section id="tech" class="border-t border-slate-200 bg-white px-6 py-24 lg:px-8">
     <div class="mx-auto max-w-6xl">
         <div class="grid gap-6 lg:grid-cols-2">
             <article class="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">

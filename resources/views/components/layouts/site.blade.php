@@ -5,7 +5,7 @@
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
         <div class="flex min-h-screen flex-col">
-            <flux:header container sticky class="border-b border-slate-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:border-zinc-800/80 dark:bg-zinc-900/80">
+            <flux:header container class="sticky top-0 z-[100] border-b border-slate-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:border-zinc-800/80 dark:bg-zinc-900/80">
                 <flux:sidebar.toggle class="lg:hidden" icon="bars-3-center-left" inset="left" />
 
                 <flux:brand :href="route('home')" :name="config('app.name')" class="hidden items-center gap-2 lg:flex">
@@ -19,12 +19,16 @@
                     <span class="text-lg font-semibold tracking-tight">{{ config('app.name') }}</span>
                 </a>
 
+                @php
+                    $homeUrl = route('home');
+                @endphp
+
                 <flux:navbar class="-mb-px hidden gap-2 lg:flex">
                     <flux:navbar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>{{ __('Home') }}</flux:navbar.item>
-                    <flux:navbar.item :href="route('home').'#product'" :current="false">{{ __('Platform') }}</flux:navbar.item>
-                    <flux:navbar.item :href="route('home').'#pipeline'" :current="false">{{ __('Pipeline') }}</flux:navbar.item>
-                    <flux:navbar.item :href="route('home').'#roadmap'" :current="false">{{ __('Roadmap') }}</flux:navbar.item>
-                    <flux:navbar.item :href="route('home').'#cta'" :current="false">{{ __('Contact') }}</flux:navbar.item>
+                    <flux:navbar.item href="{{ $homeUrl }}#product" :current="false">{{ __('Platform') }}</flux:navbar.item>
+                    <flux:navbar.item href="{{ $homeUrl }}#pipeline" :current="false">{{ __('Pipeline') }}</flux:navbar.item>
+                    <flux:navbar.item href="{{ $homeUrl }}#roadmap" :current="false">{{ __('Roadmap') }}</flux:navbar.item>
+                    <flux:navbar.item href="{{ $homeUrl }}#cta" :current="false">{{ __('Contact') }}</flux:navbar.item>
                 </flux:navbar>
 
                 <flux:spacer />
@@ -87,16 +91,16 @@
                     <flux:sidebar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                         {{ __('Home') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item :href="route('home').'#product'" :current="false">
+                    <flux:sidebar.item href="{{ $homeUrl }}#product" :current="false">
                         {{ __('Platform') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item :href="route('home').'#pipeline'" :current="false">
+                    <flux:sidebar.item href="{{ $homeUrl }}#pipeline" :current="false">
                         {{ __('Pipeline') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item :href="route('home').'#roadmap'" :current="false">
+                    <flux:sidebar.item href="{{ $homeUrl }}#roadmap" :current="false">
                         {{ __('Roadmap') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item :href="route('home').'#cta'" :current="false">
+                    <flux:sidebar.item href="{{ $homeUrl }}#cta" :current="false">
                         {{ __('Contact') }}
                     </flux:sidebar.item>
                 </flux:sidebar.nav>

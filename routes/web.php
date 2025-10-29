@@ -106,11 +106,13 @@ Route::get('dashboard', function () {
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
 
-    Volt::route('admin/listings', 'admin.listings.index')
-        ->name('admin.listings.index');
+    Route::middleware(['admin'])->group(function () {
+        Volt::route('admin/listings', 'admin.listings.index')
+            ->name('admin.listings.index');
 
-    Volt::route('admin/users', 'admin.users.index')
-        ->name('admin.users.index');
+        Volt::route('admin/users', 'admin.users.index')
+            ->name('admin.users.index');
+    });
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
     Volt::route('settings/password', 'settings.password')->name('password.edit');

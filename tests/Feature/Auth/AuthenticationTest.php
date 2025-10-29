@@ -38,6 +38,21 @@ test('users can not authenticate with invalid password', function () {
     $this->assertGuest();
 });
 
+test('suspended users can not authenticate', function (): void {
+    $user = User::factory()->suspended()->create();
+
+    $response = LivewireVolt::test('auth.login')
+        ->set('email', $user->email)
+        ->set('password', 'password')
+        ->call('login');
+
+    $response->assertHasErrors([
+        'email' => __('Your account has been suspended.'),
+    ]);
+
+    $this->assertGuest();
+});
+
 test('users with two factor enabled are redirected to two factor challenge', function () {
     if (! Features::canManageTwoFactorAuthentication()) {
         $this->markTestSkipped('Two-factor authentication is not enabled.');

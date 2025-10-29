@@ -17,8 +17,8 @@
 - [x] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
 - [x] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
 - [x] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
-- [ ] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
-- [ ] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
+- [x] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
+- [x] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
 - [ ] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
 - [ ] Allow admins to delete individual listings with confirmation flows and audit log entries.
 - [ ] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.

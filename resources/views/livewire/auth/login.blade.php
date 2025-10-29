@@ -67,6 +67,12 @@ new #[Layout('components.layouts.auth')] class extends Component {
             ]);
         }
 
+        if ($user instanceof User && $user->isSuspended()) {
+            throw ValidationException::withMessages([
+                'email' => __('Your account has been suspended.'),
+            ]);
+        }
+
         return $user;
     }
 

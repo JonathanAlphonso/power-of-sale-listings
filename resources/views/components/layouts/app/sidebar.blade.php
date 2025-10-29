@@ -22,6 +22,14 @@
                     >
                         {{ __('Listings') }}
                     </flux:navlist.item>
+                    <flux:navlist.item
+                        icon="users"
+                        :href="route('admin.users.index')"
+                        :current="request()->routeIs('admin.users.index')"
+                        wire:navigate
+                    >
+                        {{ __('Users') }}
+                    </flux:navlist.item>
                 </flux:navlist.group>
             </flux:navlist>
 

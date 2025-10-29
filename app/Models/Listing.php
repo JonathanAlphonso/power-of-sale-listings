@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\InteractsWithListingPayload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -109,6 +110,21 @@ class Listing extends Model
     public function statusHistory(): HasMany
     {
         return $this->hasMany(ListingStatusHistory::class)->orderByDesc('changed_at');
+    }
+
+    /**
+     * Scope queries to exclude rental listings from result sets.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeWithoutRentals(Builder $query): Builder
+    {
+        return $query->where(function (Builder $builder): void {
+            $builder
+                ->where('sale_type', '!=', 'RENT')
+                ->orWhereNull('sale_type');
+        });
     }
 
     // Payload handling helpers moved to InteractsWithListingPayload trait.

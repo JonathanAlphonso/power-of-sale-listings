@@ -16,13 +16,12 @@ test('authenticated users can browse, filter, and preview listings', function ()
     $ottawa = Municipality::factory()->create(['name' => 'Ottawa']);
 
     $rentListing = Listing::factory()
+        ->rent()
         ->for($toronto)
         ->create([
             'mls_number' => 'C1234567',
             'street_address' => '101 Rental Lane',
             'display_status' => 'Available',
-            'sale_type' => 'RENT',
-            'list_price' => 2400,
             'modified_at' => now()->subDays(2),
         ]);
 
@@ -40,15 +39,16 @@ test('authenticated users can browse, filter, and preview listings', function ()
     $this->actingAs($user);
 
     Volt::test('admin.listings.index')
-        ->assertSee($rentListing->mls_number)
+        ->assertDontSee($rentListing->mls_number)
         ->assertSee($saleListing->mls_number)
         ->set('search', $saleListing->mls_number)
         ->assertSee($saleListing->street_address)
         ->assertDontSee($rentListing->street_address)
         ->set('search', '')
         ->set('municipalityId', (string) $toronto->id)
-        ->assertSee($rentListing->street_address)
+        ->assertDontSee($rentListing->street_address)
         ->assertDontSee($saleListing->street_address)
+        ->assertSee('No listings match the current filters.')
         ->set('municipalityId', '')
         ->set('saleType', 'SALE')
         ->assertSee($saleListing->street_address)
@@ -60,6 +60,6 @@ test('authenticated users can browse, filter, and preview listings', function ()
         ->assertSet('saleType', '')
         ->assertSet('status', '')
         ->assertSet('municipalityId', '')
-        ->assertSee($rentListing->street_address)
-        ->assertSee($saleListing->street_address);
+        ->assertSee($saleListing->street_address)
+        ->assertDontSee($rentListing->street_address);
 });

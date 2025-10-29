@@ -167,7 +167,7 @@ class DatabaseSeeder extends Seeder
             'class' => 'CONDO',
             'typeName' => 'Condo Townhouse',
             'style' => '2-Storey',
-            'saleOrRent' => 'RENT',
+            'saleOrRent' => 'SALE',
             'currency' => 'CAD',
             'streetNumber' => '9',
             'streetName' => 'Lancewood',

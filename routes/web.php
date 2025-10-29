@@ -46,6 +46,7 @@ Route::get('/', function () {
         if (Schema::hasTable((new Listing)->getTable())) {
             $listingsTableExists = true;
             $sampleListings = Listing::query()
+                ->withoutRentals()
                 ->with(['source', 'municipality', 'media'])
                 ->latest('modified_at')
                 ->limit(3)
@@ -68,26 +69,35 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('dashboard', function () {
-    $totalListings = Listing::query()->count();
+    $totalListings = Listing::query()
+        ->withoutRentals()
+        ->count();
     $availableListings = Listing::query()
+        ->withoutRentals()
         ->where('display_status', 'Available')
         ->count();
-    $rentalListings = Listing::query()
-        ->where('sale_type', 'RENT')
-        ->count();
-    $averageListPrice = Listing::query()->avg('list_price');
+    $averageListPrice = Listing::query()
+        ->withoutRentals()
+        ->avg('list_price');
     $recentListings = Listing::query()
+        ->withoutRentals()
         ->with(['municipality:id,name', 'source:id,name'])
         ->latest('modified_at')
         ->limit(5)
         ->get();
+    $totalUsers = User::query()->count();
+    $recentUsers = User::query()
+        ->latest('created_at')
+        ->limit(5)
+        ->get(['id', 'name', 'email', 'created_at']);
 
     return view('dashboard', [
         'totalListings' => $totalListings,
         'availableListings' => $availableListings,
-        'rentalListings' => $rentalListings,
         'averageListPrice' => $averageListPrice,
         'recentListings' => $recentListings,
+        'totalUsers' => $totalUsers,
+        'recentUsers' => $recentUsers,
     ]);
 })
     ->middleware(['auth', 'verified'])
@@ -98,6 +108,9 @@ Route::middleware(['auth'])->group(function () {
 
     Volt::route('admin/listings', 'admin.listings.index')
         ->name('admin.listings.index');
+
+    Volt::route('admin/users', 'admin.users.index')
+        ->name('admin.users.index');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
     Volt::route('settings/password', 'settings.password')->name('password.edit');

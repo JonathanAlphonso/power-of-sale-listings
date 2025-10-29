@@ -51,13 +51,13 @@
 
                 <div class="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-zinc-900/60">
                     <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                        {{ __('Rental opportunities') }}
+                        {{ __('Team members') }}
                     </p>
-                    <p class="mt-2 text-3xl font-semibold text-sky-600 dark:text-sky-400">
-                        {{ $formatCount($rentalListings) }}
+                    <p class="mt-2 text-3xl font-semibold text-indigo-600 dark:text-indigo-400">
+                        {{ $formatCount($totalUsers) }}
                     </p>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {{ __('Active records with a RENT sale type.') }}
+                        {{ __('Registered user accounts with platform access.') }}
                     </p>
                 </div>
 
@@ -127,25 +127,43 @@
 
                 <div class="flex h-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-700 dark:bg-zinc-900/60">
                     <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                        {{ __('Next steps') }}
+                        {{ __('Team snapshot') }}
                     </h2>
 
-                    <div class="space-y-4 text-sm text-zinc-600 dark:text-zinc-300">
-                        <p>
-                            {{ __('Review the latest listing activity above, then dive into the admin workspace to filter, inspect media, and audit status changes.') }}
-                        </p>
-                        <p>
-                            {{ __('Need to stage new ingestion jobs or tweak saved searches? Use the listings workspace to confirm records before promoting updates to stakeholders.') }}
-                        </p>
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-300">
+                        {{ __('Monitor recent sign-ups and jump into the user workspace to update permissions or contact details.') }}
+                    </flux:text>
+
+                    <div class="space-y-4">
+                        @forelse ($recentUsers as $user)
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="space-y-1">
+                                    <p class="text-sm font-semibold text-zinc-900 dark:text-white">
+                                        {{ $user->name }}
+                                    </p>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                        {{ $user->email }}
+                                    </p>
+                                </div>
+
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ optional($user->created_at)?->diffForHumans() ?? __('Unknown') }}
+                                </p>
+                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{ __('No user accounts have been created yet.') }}
+                            </p>
+                        @endforelse
                     </div>
 
                     <flux:button
-                        icon="cursor-arrow-rays"
+                        icon="users"
                         variant="outline"
-                        :href="route('admin.listings.index')"
+                        :href="route('admin.users.index')"
                         class="mt-auto"
                     >
-                        {{ __('Go to listings admin') }}
+                        {{ __('Manage users') }}
                     </flux:button>
                 </div>
             </div>

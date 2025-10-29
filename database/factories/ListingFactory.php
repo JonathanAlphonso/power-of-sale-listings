@@ -24,10 +24,7 @@ class ListingFactory extends Factory
         $squareFeet = fake()->numberBetween(650, 3200);
         $squareFeetRangeStart = (int) (floor($squareFeet / 100) * 100);
         $squareFeetRangeEnd = $squareFeetRangeStart + 199;
-        $saleType = fake()->randomElement(['SALE', 'RENT']);
-        $listPrice = $saleType === 'RENT'
-            ? fake()->randomFloat(2, 1800, 6500)
-            : fake()->randomFloat(2, 225000, 1750000);
+        $listPrice = fake()->randomFloat(2, 225000, 1750000);
         $originalListPrice = $listPrice + fake()->randomFloat(2, -45000, 55000);
         $originalListPrice = max($originalListPrice, 0.00);
         $priceLow = max($listPrice - fake()->randomFloat(2, 1000, 50000), 0.00);
@@ -45,7 +42,7 @@ class ListingFactory extends Factory
             'property_class' => fake()->randomElement(['CONDO', 'RESIDENTIAL', 'COMMERCIAL']),
             'property_type' => fake()->randomElement(['Condo Townhouse', 'Detached', 'Semi-Detached']),
             'property_style' => fake()->randomElement(['2-Storey', 'Bungalow', 'Loft']),
-            'sale_type' => $saleType,
+            'sale_type' => 'SALE',
             'currency' => 'CAD',
             'street_number' => (string) fake()->buildingNumber(),
             'street_name' => fake()->streetName(),
@@ -81,5 +78,25 @@ class ListingFactory extends Factory
                 'notes' => fake()->sentence(),
             ],
         ];
+    }
+
+    /**
+     * Indicate the listing is a rental record.
+     */
+    public function rent(): static
+    {
+        return $this->state(function () {
+            $rentPrice = fake()->randomFloat(2, 1800, 6500);
+            $priceLow = max($rentPrice - fake()->randomFloat(2, 100, 600), 0.00);
+
+            return [
+                'sale_type' => 'RENT',
+                'list_price' => $rentPrice,
+                'original_list_price' => $rentPrice,
+                'price' => $rentPrice,
+                'price_low' => $priceLow,
+                'price_per_square_foot' => null,
+            ];
+        });
     }
 }

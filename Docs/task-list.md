@@ -17,24 +17,27 @@
 - [x] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
 - [x] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
 - [x] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
+- [ ] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
 - [ ] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
 - [ ] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
-- [ ] Implement authorization policies and gates for admin-only actions; ensure policy tests cover allow/deny paths.
+- [ ] Allow admins to delete individual listings with confirmation flows and audit log entries.
+- [ ] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.
+- [ ] Implement authorization policies and gates leveraging the new role model; ensure policy tests cover allow/deny paths.
 - [ ] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.
 - [ ] Update navigation to expose admin dashboard routes only for authenticated users.
+- [ ] Integrate Google Analytics configuration into admin settings and surface key metrics within the dashboard.
 - [ ] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
 
 ## M2 – Data Intake & Normalisation
 
-- [ ] Scaffold CSV import UI (Volt form + Flux upload field) with validation rules via Form Request classes.
-- [ ] Store uploaded files using temporary storage; create queued jobs to parse and process records in batches.
-- [ ] Parse incoming data, mapping to canonical listing structure; preserve raw payloads in JSON columns for auditing.
+- [ ] Configure PropTx API credentials, authentication flow, and scheduled sync jobs to ingest new and updated listings.
+- [ ] Normalise PropTx payloads into the canonical listing structure while persisting raw payload snapshots for auditing.
 - [ ] Implement change-log tracking (created/updated/deactivated) and associate with listing history table.
-- [ ] Surface import job statuses, errors, and progress within an admin dashboard view.
-- [ ] Add retry and rollback controls for failed imports; ensure idempotency on reprocessing.
-- [ ] Write queue job, model, and dashboard tests covering happy paths, validation errors, and duplicate detection.
+- [ ] Surface PropTx sync statuses, errors, and metrics within an admin dashboard view.
+- [ ] Add retry, backoff, and rollback controls for failed API synchronisations; ensure idempotency on reprocessing.
+- [ ] Write queue job, API client, and dashboard tests covering happy paths, validation errors, and duplicate detection.
 - [ ] Schedule nightly duplicate/stale listing checks via Laravel scheduler with reporting to admin inbox/log.
-- [ ] Document import workflow (file format expectations, known error codes) in runbook.
+- [ ] Document PropTx integration workflow (API endpoints, rate limits, error codes) in runbook.
 
 ## M3 – Public Portal & Notifications
 

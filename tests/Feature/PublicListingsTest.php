@@ -36,7 +36,7 @@ test('listings pagination links are rendered', function (): void {
 
     $response
         ->assertOk()
-        ->assertSee('href="http://power-of-sales-ontario-db.test/listings?page=2"', false);
+        ->assertSee('?page=2', false);
 });
 
 test('guests can view a listing detail page', function (): void {

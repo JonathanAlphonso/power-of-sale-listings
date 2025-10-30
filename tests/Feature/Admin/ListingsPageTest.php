@@ -15,23 +15,22 @@ test('authenticated users can browse, filter, and preview listings', function ()
     $toronto = Municipality::factory()->create(['name' => 'Toronto']);
     $ottawa = Municipality::factory()->create(['name' => 'Ottawa']);
 
-    $rentListing = Listing::factory()
-        ->rent()
+    $availableListing = Listing::factory()
         ->for($toronto)
         ->create([
             'mls_number' => 'C1234567',
-            'street_address' => '101 Rental Lane',
+            'street_address' => '101 Market Lane',
             'display_status' => 'Available',
+            'list_price' => 540000,
             'modified_at' => now()->subDays(2),
         ]);
 
-    $saleListing = Listing::factory()
+    $conditionalListing = Listing::factory()
         ->for($ottawa)
         ->create([
             'mls_number' => 'K7654321',
             'street_address' => '202 Market Street',
             'display_status' => 'Conditionally Sold',
-            'sale_type' => 'SALE',
             'list_price' => 650000,
             'modified_at' => now()->subDay(),
         ]);
@@ -39,27 +38,28 @@ test('authenticated users can browse, filter, and preview listings', function ()
     $this->actingAs($user);
 
     Volt::test('admin.listings.index')
-        ->assertDontSee($rentListing->mls_number)
-        ->assertSee($saleListing->mls_number)
-        ->set('search', $saleListing->mls_number)
-        ->assertSee($saleListing->street_address)
-        ->assertDontSee($rentListing->street_address)
+        ->assertSee($availableListing->mls_number)
+        ->assertSee($conditionalListing->mls_number)
+        ->set('search', $conditionalListing->mls_number)
+        ->assertSee($conditionalListing->street_address)
+        ->assertDontSee($availableListing->street_address)
         ->set('search', '')
         ->set('municipalityId', (string) $toronto->id)
-        ->assertDontSee($rentListing->street_address)
-        ->assertDontSee($saleListing->street_address)
+        ->assertSee($availableListing->street_address)
+        ->assertDontSee($conditionalListing->street_address)
+        ->set('status', 'Conditionally Sold')
         ->assertSee('No listings match the current filters.')
+        ->set('status', '')
         ->set('municipalityId', '')
-        ->set('saleType', 'SALE')
-        ->assertSee($saleListing->street_address)
-        ->assertDontSee($rentListing->street_address)
-        ->call('selectListing', $saleListing->id)
-        ->assertSet('selectedListingId', $saleListing->id)
+        ->set('status', 'Conditionally Sold')
+        ->assertSee($conditionalListing->street_address)
+        ->assertDontSee($availableListing->street_address)
+        ->call('selectListing', $conditionalListing->id)
+        ->assertSet('selectedListingId', $conditionalListing->id)
         ->call('resetFilters')
         ->assertSet('search', '')
-        ->assertSet('saleType', '')
         ->assertSet('status', '')
         ->assertSet('municipalityId', '')
-        ->assertSee($saleListing->street_address)
-        ->assertDontSee($rentListing->street_address);
+        ->assertSee($availableListing->street_address)
+        ->assertSee($conditionalListing->street_address);
 });

@@ -1,4 +1,4 @@
-<div class="grid gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60 sm:grid-cols-2 lg:grid-cols-4">
+<div class="grid gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60 sm:grid-cols-2 lg:grid-cols-3">
     <flux:input
         wire:model.live.debounce.400ms="search"
         :label="__('Search')"
@@ -23,18 +23,6 @@
         <flux:select.option value="">{{ __('All municipalities') }}</flux:select.option>
         @foreach ($this->municipalities as $municipality)
             <flux:select.option value="{{ $municipality->id }}">{{ $municipality->name }}</flux:select.option>
-        @endforeach
-    </flux:select>
-
-    <flux:select
-        wire:model.live="saleType"
-        :label="__('Sale Type')"
-    >
-        <flux:select.option value="">{{ __('All sale types') }}</flux:select.option>
-        @foreach ($this->availableSaleTypes as $saleTypeOption)
-            <flux:select.option value="{{ $saleTypeOption }}">
-                {{ \App\Support\ListingPresentation::saleType($saleTypeOption) }}
-            </flux:select.option>
         @endforeach
     </flux:select>
 

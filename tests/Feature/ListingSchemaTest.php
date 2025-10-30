@@ -25,7 +25,6 @@ it('creates the listings table with expected columns', function (): void {
         'property_class',
         'property_type',
         'property_style',
-        'sale_type',
         'currency',
         'street_number',
         'street_name',

@@ -1,0 +1,417 @@
+<?php
+
+use App\Models\Listing;
+use App\Support\ListingPresentation;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Config;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Volt\Component;
+
+new #[Layout('components.layouts.app')] class extends Component {
+    #[Locked]
+    public int $listingId;
+
+    public function mount(Listing $listing): void
+    {
+        $this->listingId = $listing->getKey();
+    }
+
+    #[Computed]
+    public function listing(): Listing
+    {
+        return Listing::query()
+            ->with([
+                'media' => fn ($query) => $query->orderBy('position'),
+                'source:id,name',
+                'municipality:id,name',
+                'statusHistory' => fn ($query) => $query
+                    ->with('source:id,name')
+                    ->orderByDesc('changed_at'),
+            ])
+            ->findOrFail($this->listingId);
+    }
+
+    #[Computed]
+    public function metadataPanels(): array
+    {
+        $listing = $this->listing;
+        $timezone = Config::get('app.timezone');
+
+        return [
+            [
+                'title' => __('Overview'),
+                'items' => [
+                    [
+                        'label' => __('MLS number'),
+                        'value' => $listing->mls_number ?? '—',
+                    ],
+                    [
+                        'label' => __('Display status'),
+                        'value' => $listing->display_status ?? '—',
+                    ],
+                    [
+                        'label' => __('List price'),
+                        'value' => ListingPresentation::currency($listing->list_price),
+                    ],
+                    [
+                        'label' => __('Original list price'),
+                        'value' => ListingPresentation::currency($listing->original_list_price),
+                    ],
+                    [
+                        'label' => __('Price change'),
+                        'value' => ListingPresentation::numeric($listing->price_change),
+                    ],
+                    [
+                        'label' => __('Price direction'),
+                        'value' => $this->priceChangeDirectionLabel($listing->price_change_direction),
+                    ],
+                    [
+                        'label' => __('Last modified'),
+                        'value' => $listing->modified_at?->timezone($timezone)?->format('M j, Y g:i a') ?? '—',
+                    ],
+                ],
+            ],
+            [
+                'title' => __('Location & source'),
+                'items' => [
+                    [
+                        'label' => __('Municipality'),
+                        'value' => $listing->municipality?->name ?? '—',
+                    ],
+                    [
+                        'label' => __('City'),
+                        'value' => $listing->city ?? '—',
+                    ],
+                    [
+                        'label' => __('Board code'),
+                        'value' => $listing->board_code ?? '—',
+                    ],
+                    [
+                        'label' => __('Source'),
+                        'value' => $listing->source?->name ?? '—',
+                    ],
+                    [
+                        'label' => __('Ingestion batch'),
+                        'value' => $listing->ingestion_batch_id ?? '—',
+                    ],
+                    [
+                        'label' => __('Parcel ID'),
+                        'value' => $listing->parcel_id ?? '—',
+                    ],
+                    [
+                        'label' => __('Address visibility'),
+                        'value' => $this->booleanLabel($listing->is_address_public),
+                    ],
+                    [
+                        'label' => __('Coordinates'),
+                        'value' => $this->formattedCoordinates($listing),
+                    ],
+                ],
+            ],
+            [
+                'title' => __('Property facts'),
+                'items' => [
+                    [
+                        'label' => __('Property class'),
+                        'value' => $listing->property_class ?? '—',
+                    ],
+                    [
+                        'label' => __('Property type'),
+                        'value' => $listing->property_type ?? '—',
+                    ],
+                    [
+                        'label' => __('Property style'),
+                        'value' => $listing->property_style ?? '—',
+                    ],
+                    [
+                        'label' => __('Bedrooms'),
+                        'value' => ListingPresentation::numeric($listing->bedrooms),
+                    ],
+                    [
+                        'label' => __('Possible bedrooms'),
+                        'value' => ListingPresentation::numeric($listing->bedrooms_possible),
+                    ],
+                    [
+                        'label' => __('Bathrooms'),
+                        'value' => ListingPresentation::numeric($listing->bathrooms, 1),
+                    ],
+                    [
+                        'label' => __('Square feet'),
+                        'value' => $listing->square_feet_text ?? ListingPresentation::numeric($listing->square_feet),
+                    ],
+                    [
+                        'label' => __('Days on market'),
+                        'value' => ListingPresentation::numeric($listing->days_on_market),
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    #[Computed]
+    public function gallery(): Collection
+    {
+        return $this->listing->media;
+    }
+
+    #[Computed]
+    public function history(): Collection
+    {
+        return $this->listing->statusHistory->take(15)->values();
+    }
+
+    private function priceChangeDirectionLabel(?int $direction): string
+    {
+        return match ($direction) {
+            -1 => __('Decreased'),
+            0 => __('No change'),
+            1 => __('Increased'),
+            default => '—',
+        };
+    }
+
+    private function booleanLabel(?bool $value): string
+    {
+        return match ($value) {
+            true => __('Public'),
+            false => __('Private'),
+            default => '—',
+        };
+    }
+
+    private function formattedCoordinates(Listing $listing): string
+    {
+        if ($listing->latitude === null || $listing->longitude === null) {
+            return '—';
+        }
+
+        $lat = number_format((float) $listing->latitude, 4);
+        $lng = number_format((float) $listing->longitude, 4);
+
+        return "{$lat}, {$lng}";
+    }
+}; ?>
+
+@php
+    /** @var \App\Models\Listing $listing */
+    $listing = $this->listing;
+
+    $metadataPanels = $this->metadataPanels;
+    $gallery = $this->gallery;
+    $history = $this->history;
+
+    $primaryPhoto = $gallery->firstWhere('is_primary', true) ?? $gallery->first();
+    $cityLabel = $listing->city ?? null;
+
+    if ($listing->neighbourhood !== null) {
+        $cityLabel = trim(($cityLabel ?? '') === '' ? $listing->neighbourhood : sprintf('%s (%s)', $cityLabel, $listing->neighbourhood));
+    } elseif ($listing->district !== null) {
+        $cityLabel = trim(($cityLabel ?? '') === '' ? $listing->district : sprintf('%s (%s)', $cityLabel, $listing->district));
+    }
+
+    $provinceLine = trim(collect([$listing->province, $listing->postal_code])->filter()->implode(' '));
+    $locationLine = collect([$cityLabel, $provinceLine])->filter()->implode(', ');
+@endphp
+
+<section class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <flux:button
+            as="a"
+            :href="route('admin.listings.index')"
+            variant="ghost"
+            icon="chevron-left"
+            wire:navigate
+        >
+            {{ __('Back to listings') }}
+        </flux:button>
+
+        <flux:badge color="{{ ListingPresentation::statusBadge($listing->display_status) }}" size="md">
+            {{ $listing->display_status ?? __('Unknown status') }}
+        </flux:badge>
+    </div>
+
+    <div class="mt-6 flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+            <flux:text class="text-sm uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                {{ __('Current List Price') }}
+            </flux:text>
+
+            <flux:heading size="xl" class="text-5xl font-semibold text-emerald-600 dark:text-emerald-400">
+                {{ ListingPresentation::currency($listing->list_price) }}
+            </flux:heading>
+        </div>
+
+        <div class="flex flex-col gap-1">
+            <flux:heading size="lg" class="font-semibold text-slate-900 uppercase tracking-tight dark:text-zinc-100">
+                {{ strtoupper($listing->street_address ?? __('Address unavailable')) }}
+            </flux:heading>
+
+            <flux:text class="text-base text-slate-600 dark:text-zinc-300">
+                {{ $locationLine !== '' ? $locationLine : __('No additional address context is available.') }}
+            </flux:text>
+        </div>
+
+        @if ($listing->mls_number)
+            <flux:text class="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                {{ __('MLS® Number: :mls', ['mls' => $listing->mls_number]) }}
+            </flux:text>
+        @endif
+    </div>
+
+    <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)]">
+        <div class="flex flex-col gap-6">
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div class="flex flex-col gap-2">
+                    <flux:heading size="md">{{ __('Listing metadata') }}</flux:heading>
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ __('Key facts, pricing, and location data pulled from the canonical record.') }}
+                    </flux:text>
+                </div>
+
+                <div class="mt-6 flex flex-col gap-6">
+                    @foreach ($metadataPanels as $panel)
+                        <div class="flex flex-col gap-3">
+                            <flux:text class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                {{ $panel['title'] }}
+                            </flux:text>
+
+                            <dl class="grid gap-4 sm:grid-cols-2">
+                                @foreach ($panel['items'] as $item)
+                                    <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/70">
+                                        <dt class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                            {{ $item['label'] }}
+                                        </dt>
+                                        <dd class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $item['value'] }}
+                                        </dd>
+                                    </div>
+                                @endforeach
+                            </dl>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div class="flex flex-col gap-2">
+                    <flux:heading size="md">{{ __('Change history') }}</flux:heading>
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ __('Review the most recent status updates observed for this listing.') }}
+                    </flux:text>
+                </div>
+
+                @if ($history->isNotEmpty())
+                    <div class="mt-6">
+                        <flux:table class="!border-none !bg-transparent !shadow-none">
+                            <flux:table.header>
+                                <span>{{ __('Status') }}</span>
+                                <span>{{ __('Code') }}</span>
+                                <span class="text-center">{{ __('Changed') }}</span>
+                                <span class="text-center">{{ __('Source') }}</span>
+                                <span>{{ __('Notes') }}</span>
+                            </flux:table.header>
+
+                            <flux:table.rows>
+                                @foreach ($history as $record)
+                                    <flux:table.row wire:key="history-record-{{ $record->id }}">
+                                        <flux:table.cell>
+                                            <span class="font-medium text-zinc-900 dark:text-white">
+                                                {{ $record->status_label ?? '—' }}
+                                            </span>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell>
+                                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-300">
+                                                {{ $record->status_code ?? '—' }}
+                                            </flux:text>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell alignment="center">
+                                            <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                {{ $record->changed_at?->timezone(Config::get('app.timezone'))?->format('M j, Y g:i a') ?? __('—') }}
+                                            </span>
+                                            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                {{ $record->changed_at?->diffForHumans() ?? __('No timestamp') }}
+                                            </flux:text>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell alignment="center">
+                                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-300">
+                                                {{ $record->source?->name ?? '—' }}
+                                            </flux:text>
+                                        </flux:table.cell>
+
+                                        <flux:table.cell>
+                                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-300">
+                                                {{ $record->notes ?? '—' }}
+                                            </flux:text>
+                                        </flux:table.cell>
+                                    </flux:table.row>
+                                @endforeach
+                            </flux:table.rows>
+                        </flux:table>
+                    </div>
+                @else
+                    <flux:callout class="mt-6 rounded-2xl">
+                        <flux:callout.heading>{{ __('No change history available yet') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('Status transitions will surface here as soon as sync jobs begin recording updates for this record.') }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @endif
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-6">
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div class="flex flex-col gap-2">
+                    <flux:heading size="md">{{ __('Media gallery') }}</flux:heading>
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ __('Preview photos associated with the listing payload.') }}
+                    </flux:text>
+                </div>
+
+                @if ($gallery->isNotEmpty())
+                    <div class="mt-6 space-y-4">
+                        @if ($primaryPhoto !== null)
+                            <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                                <img
+                                    src="{{ $primaryPhoto->url ?? $primaryPhoto->preview_url }}"
+                                    alt="{{ $primaryPhoto->label ?? __('Listing photo') }}"
+                                    class="aspect-video w-full object-cover"
+                                    loading="lazy"
+                                />
+                            </div>
+                        @endif
+
+                        @if ($gallery->count() > 1)
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                @foreach ($gallery->filter(fn ($mediaItem) => $primaryPhoto === null || $mediaItem->is($primaryPhoto) === false) as $mediaItem)
+                                    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                                        <img
+                                            src="{{ $mediaItem->preview_url ?? $mediaItem->url }}"
+                                            alt="{{ $mediaItem->label ?? __('Listing photo') }}"
+                                            class="aspect-video w-full object-cover"
+                                            loading="lazy"
+                                        />
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                @else
+                    <div class="mt-6 flex aspect-video items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/70">
+                        <div class="flex flex-col items-center gap-3 text-center">
+                            <flux:icon name="photo" class="h-10 w-10" />
+                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                                {{ __('No photos have been attached to this listing yet.') }}
+                            </flux:text>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</section>

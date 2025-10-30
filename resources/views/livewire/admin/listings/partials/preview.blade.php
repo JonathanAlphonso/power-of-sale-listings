@@ -47,10 +47,10 @@
 
                     <div class="rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-900/70">
                         <flux:text class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            {{ __('Sale type') }}
+                            {{ __('Status') }}
                         </flux:text>
                         <p class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {{ \App\Support\ListingPresentation::saleType($selectedListing->sale_type) }}
+                            {{ $selectedListing->display_status ?? __('Unknown') }}
                         </p>
                     </div>
                 </div>
@@ -114,6 +114,18 @@
                         </span>
                     </div>
                 </div>
+            </div>
+
+            <div class="mt-4">
+                <flux:button
+                    :href="route('admin.listings.show', $selectedListing)"
+                    icon="arrow-top-right-on-square"
+                    variant="outline"
+                    class="w-full"
+                    wire:navigate
+                >
+                    {{ __('Open detail view') }}
+                </flux:button>
             </div>
         </div>
     @else

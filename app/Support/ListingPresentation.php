@@ -4,15 +4,6 @@ namespace App\Support;
 
 class ListingPresentation
 {
-    public static function saleType(?string $saleType): string
-    {
-        return match ($saleType) {
-            'RENT' => __('For Rent'),
-            'SALE' => __('For Sale'),
-            default => __('Unknown'),
-        };
-    }
-
     public static function statusBadge(?string $status): string
     {
         $normalized = strtolower((string) $status);

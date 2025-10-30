@@ -68,6 +68,30 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+Route::get('listings', function () {
+    $listings = Listing::query()
+        ->with(['source:id,name', 'municipality:id,name', 'media'])
+        ->latest('modified_at')
+        ->paginate(12);
+
+    return view('listings', [
+        'listings' => $listings,
+    ]);
+})->name('listings.index');
+
+Route::get('listings/{listing}', function (Listing $listing) {
+    $listing->load([
+        'media' => fn ($query) => $query->orderBy('position'),
+        'source:id,name',
+        'municipality:id,name',
+        'statusHistory' => fn ($query) => $query->orderByDesc('changed_at')->limit(5),
+    ]);
+
+    return view('listings.show', [
+        'listing' => $listing,
+    ]);
+})->name('listings.show');
+
 Route::get('dashboard', function () {
     $totalListings = Listing::query()
         ->withoutRentals()
@@ -100,7 +124,7 @@ Route::get('dashboard', function () {
         'recentUsers' => $recentUsers,
     ]);
 })
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'admin'])
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
@@ -109,6 +133,9 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['admin'])->group(function () {
         Volt::route('admin/listings', 'admin.listings.index')
             ->name('admin.listings.index');
+
+        Volt::route('admin/listings/{listing}', 'admin.listings.show')
+            ->name('admin.listings.show');
 
         Volt::route('admin/users', 'admin.users.index')
             ->name('admin.users.index');

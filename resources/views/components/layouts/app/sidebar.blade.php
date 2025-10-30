@@ -17,7 +17,7 @@
                     <flux:navlist.item
                         icon="table-cells"
                         :href="route('admin.listings.index')"
-                        :current="request()->routeIs('admin.listings.index')"
+                        :current="request()->routeIs('admin.listings.*')"
                         wire:navigate
                     >
                         {{ __('Listings') }}

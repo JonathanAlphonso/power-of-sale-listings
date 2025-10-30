@@ -25,6 +25,7 @@
 
                 <flux:navbar class="-mb-px hidden gap-2 lg:flex">
                     <flux:navbar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>{{ __('Home') }}</flux:navbar.item>
+                    <flux:navbar.item :href="route('listings.index')" :current="request()->routeIs('listings.index')" wire:navigate>{{ __('Listings') }}</flux:navbar.item>
                     <flux:navbar.item href="{{ $homeUrl }}#product" :current="false">{{ __('Platform') }}</flux:navbar.item>
                     <flux:navbar.item href="{{ $homeUrl }}#pipeline" :current="false">{{ __('Pipeline') }}</flux:navbar.item>
                     <flux:navbar.item href="{{ $homeUrl }}#roadmap" :current="false">{{ __('Roadmap') }}</flux:navbar.item>
@@ -34,11 +35,13 @@
                 <flux:spacer />
 
                 @auth
-                    <flux:navbar class="hidden items-center gap-2 lg:flex">
-                        <flux:navbar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                            {{ __('Dashboard') }}
-                        </flux:navbar.item>
-                    </flux:navbar>
+                    @if (auth()->user()->isAdmin())
+                        <flux:navbar class="hidden items-center gap-2 lg:flex">
+                            <flux:navbar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                                {{ __('Dashboard') }}
+                            </flux:navbar.item>
+                        </flux:navbar>
+                    @endif
 
                     <flux:dropdown position="top" align="end">
                         <flux:profile
@@ -91,6 +94,9 @@
                     <flux:sidebar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                         {{ __('Home') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item :href="route('listings.index')" :current="request()->routeIs('listings.index')" wire:navigate>
+                        {{ __('Listings') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item href="{{ $homeUrl }}#product" :current="false">
                         {{ __('Platform') }}
                     </flux:sidebar.item>
@@ -109,9 +115,11 @@
 
                 <flux:sidebar.nav>
                     @auth
-                        <flux:sidebar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                            {{ __('Dashboard') }}
-                        </flux:sidebar.item>
+                        @if (auth()->user()->isAdmin())
+                            <flux:sidebar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                                {{ __('Dashboard') }}
+                            </flux:sidebar.item>
+                        @endif
                         <flux:sidebar.item :href="route('profile.edit')" wire:navigate>{{ __('Settings') }}</flux:sidebar.item>
 
                         <form method="POST" action="{{ route('logout') }}">

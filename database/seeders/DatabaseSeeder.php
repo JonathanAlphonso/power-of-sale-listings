@@ -88,7 +88,7 @@ class DatabaseSeeder extends Seeder
             $municipalities = Municipality::factory()->count(3)->create();
 
             Listing::factory()
-                ->count(12)
+                ->count(100)
                 ->for($boardSource, 'source')
                 ->state(new Sequence(
                     fn (Sequence $sequence) => [

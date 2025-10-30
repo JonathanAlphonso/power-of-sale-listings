@@ -4,7 +4,7 @@
             <span>{{ __('MLS') }}</span>
             <span>{{ __('Address') }}</span>
             <span class="text-center">{{ __('Status') }}</span>
-            <span class="text-center">{{ __('Sale') }}</span>
+            <span class="text-center">{{ __('Price') }}</span>
             <span class="text-right">{{ __('Updated') }}</span>
         </flux:table.header>
 
@@ -42,10 +42,10 @@
 
                     <flux:table.cell alignment="center">
                         <flux:text class="font-medium text-zinc-800 dark:text-zinc-200">
-                            {{ \App\Support\ListingPresentation::saleType($listing->sale_type) }}
+                            {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
                         </flux:text>
                         <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
+                            {{ __('Original: :price', ['price' => \App\Support\ListingPresentation::currency($listing->original_list_price)]) }}
                         </flux:text>
                     </flux:table.cell>
 

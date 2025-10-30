@@ -33,7 +33,6 @@ class Listing extends Model
         'property_class',
         'property_type',
         'property_style',
-        'sale_type',
         'currency',
         'street_number',
         'street_name',
@@ -120,11 +119,7 @@ class Listing extends Model
      */
     public function scopeWithoutRentals(Builder $query): Builder
     {
-        return $query->where(function (Builder $builder): void {
-            $builder
-                ->where('sale_type', '!=', 'RENT')
-                ->orWhereNull('sale_type');
-        });
+        return $query;
     }
 
     // Payload handling helpers moved to InteractsWithListingPayload trait.

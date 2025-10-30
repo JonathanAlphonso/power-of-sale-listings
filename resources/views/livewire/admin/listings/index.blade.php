@@ -2,7 +2,6 @@
 
 use App\Models\Listing;
 use App\Models\Municipality;
-use App\Support\ListingPresentation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -28,9 +27,6 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     #[Url(as: 'municipality', except: '')]
     public string $municipalityId = '';
-
-    #[Url(as: 'sale', except: '')]
-    public string $saleType = '';
 
     #[Url(as: 'per', except: '15')]
     public string $perPage = '15';
@@ -65,11 +61,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->resetFiltersState();
     }
 
-    public function updatedSaleType(): void
-    {
-        $this->resetFiltersState();
-    }
-
     public function updatedPerPage(): void
     {
         $this->perPage = (string) $this->resolvePerPage((int) $this->perPage);
@@ -86,7 +77,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->search = '';
         $this->status = '';
         $this->municipalityId = '';
-        $this->saleType = '';
         $this->perPage = (string) self::PER_PAGE_OPTIONS[0];
 
         $this->resetFiltersState();
@@ -112,7 +102,6 @@ new #[Layout('components.layouts.app')] class extends Component {
             })
             ->when($this->status !== '', fn (Builder $builder): Builder => $builder->where('display_status', $this->status))
             ->when($municipalityId !== null, fn (Builder $builder): Builder => $builder->where('municipality_id', $municipalityId))
-            ->when($this->saleType !== '', fn (Builder $builder): Builder => $builder->where('sale_type', $this->saleType))
             ->orderByDesc('modified_at')
             ->orderByDesc('id')
             ->paginate($perPage);
@@ -142,18 +131,6 @@ new #[Layout('components.layouts.app')] class extends Component {
             ->whereNotNull('display_status')
             ->orderBy('display_status')
             ->pluck('display_status');
-    }
-
-    #[Computed]
-    public function availableSaleTypes(): SupportCollection
-    {
-        return Listing::query()
-            ->withoutRentals()
-            ->select('sale_type')
-            ->distinct()
-            ->whereNotNull('sale_type')
-            ->orderBy('sale_type')
-            ->pluck('sale_type');
     }
 
     #[Computed]

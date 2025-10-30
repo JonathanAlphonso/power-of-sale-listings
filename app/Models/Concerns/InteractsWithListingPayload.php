@@ -46,7 +46,6 @@ trait InteractsWithListingPayload
             'property_class' => $payload['class'] ?? null,
             'property_type' => $payload['typeName'] ?? $payload['property_type'] ?? null,
             'property_style' => $payload['style'] ?? null,
-            'sale_type' => isset($payload['saleOrRent']) ? strtoupper((string) $payload['saleOrRent']) : null,
             'currency' => $payload['currency'] ?? 'CAD',
             'street_number' => $payload['streetNumber'] ?? null,
             'street_name' => $payload['streetName'] ?? null,

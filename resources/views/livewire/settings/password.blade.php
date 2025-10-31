@@ -26,9 +26,11 @@ new class extends Component {
             throw $e;
         }
 
-        Auth::user()->update([
+        Auth::user()->forceFill([
             'password' => $validated['password'],
-        ]);
+            'password_forced_at' => null,
+            'password_forced_by_id' => null,
+        ])->save();
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

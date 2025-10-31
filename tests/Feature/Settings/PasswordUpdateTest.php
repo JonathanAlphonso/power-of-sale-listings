@@ -5,9 +5,16 @@ use Illuminate\Support\Facades\Hash;
 use Livewire\Volt\Volt;
 
 test('password can be updated', function () {
+    $admin = User::factory()->admin()->create();
+
     $user = User::factory()->create([
         'password' => Hash::make('password'),
     ]);
+
+    $user->forceFill([
+        'password_forced_at' => now()->subDay(),
+        'password_forced_by_id' => $admin->id,
+    ])->save();
 
     $this->actingAs($user);
 
@@ -19,7 +26,11 @@ test('password can be updated', function () {
 
     $response->assertHasNoErrors();
 
-    expect(Hash::check('new-password', $user->refresh()->password))->toBeTrue();
+    $user->refresh();
+
+    expect(Hash::check('new-password', $user->password))->toBeTrue();
+    expect($user->password_forced_at)->toBeNull();
+    expect($user->password_forced_by_id)->toBeNull();
 });
 
 test('correct password must be provided to update password', function () {

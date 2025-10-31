@@ -66,6 +66,28 @@ test('suspended users can not authenticate', function (): void {
     $this->assertGuest();
 });
 
+test('users forced to rotate their password receive a reset alert on failed login', function (): void {
+    $admin = User::factory()->admin()->create();
+    $user = User::factory()->create();
+
+    $user->forceFill([
+        'password' => 'temporary-password',
+        'password_forced_at' => now(),
+        'password_forced_by_id' => $admin->id,
+    ])->save();
+
+    $response = LivewireVolt::test('auth.login')
+        ->set('email', $user->email)
+        ->set('password', 'password')
+        ->call('login');
+
+    $response->assertHasErrors([
+        'email' => __('Your password has been reset. Check your email to finish signing in.'),
+    ]);
+
+    $this->assertGuest();
+});
+
 test('users with two factor enabled are redirected to two factor challenge', function () {
     if (! Features::canManageTwoFactorAuthentication()) {
         $this->markTestSkipped('Two-factor authentication is not enabled.');

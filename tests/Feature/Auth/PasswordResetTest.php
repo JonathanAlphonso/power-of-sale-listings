@@ -44,7 +44,13 @@ test('reset password screen can be rendered', function () {
 test('password can be reset with valid token', function () {
     Notification::fake();
 
+    $admin = User::factory()->admin()->create();
     $user = User::factory()->create();
+
+    $user->forceFill([
+        'password_forced_at' => now()->subHour(),
+        'password_forced_by_id' => $admin->id,
+    ])->save();
 
     Volt::test('auth.forgot-password')
         ->set('email', $user->email)
@@ -60,6 +66,9 @@ test('password can be reset with valid token', function () {
         $response
             ->assertHasNoErrors()
             ->assertRedirect(route('login', absolute: false));
+
+        expect($user->refresh()->password_forced_at)->toBeNull();
+        expect($user->password_forced_by_id)->toBeNull();
 
         return true;
     });

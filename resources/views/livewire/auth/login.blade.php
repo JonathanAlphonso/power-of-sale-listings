@@ -61,10 +61,17 @@ new #[Layout('components.layouts.auth')] class extends Component {
      */
     protected function validateCredentials(): User
     {
-        $user = Auth::getProvider()->retrieveByCredentials(['email' => $this->email, 'password' => $this->password]);
+        $provider = Auth::getProvider();
+        $user = $provider->retrieveByCredentials(['email' => $this->email]);
 
-        if (! $user || ! Auth::getProvider()->validateCredentials($user, ['password' => $this->password])) {
+        if (! $user || ! $provider->validateCredentials($user, ['password' => $this->password])) {
             RateLimiter::hit($this->throttleKey());
+
+            if ($user instanceof User && $user->password_forced_at !== null) {
+                throw ValidationException::withMessages([
+                    'email' => __('Your password has been reset. Check your email to finish signing in.'),
+                ]);
+            }
 
             throw ValidationException::withMessages([
                 'email' => __('auth.failed'),

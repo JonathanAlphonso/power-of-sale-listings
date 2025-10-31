@@ -46,6 +46,8 @@ new #[Layout('components.layouts.auth')] class extends Component {
                 $user->forceFill([
                     'password' => $this->password,
                     'remember_token' => Str::random(60),
+                    'password_forced_at' => null,
+                    'password_forced_by_id' => null,
                 ])->save();
 
                 event(new PasswordReset($user));

@@ -51,6 +51,12 @@ class FortifyServiceProvider extends ServiceProvider
             }
 
             if (! Hash::check($password, $user->password)) {
+                if ($user->password_forced_at !== null) {
+                    throw ValidationException::withMessages([
+                        Fortify::username() => __('Your password has been reset. Check your email to finish signing in.'),
+                    ]);
+                }
+
                 return null;
             }
 

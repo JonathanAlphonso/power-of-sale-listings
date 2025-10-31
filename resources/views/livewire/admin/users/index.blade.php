@@ -1,5 +1,4 @@
 <?php
-
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +27,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $perPage = '10';
 
     public ?int $selectedUserId = null;
+
+    public bool $isProcessing = false;
 
     /** @var array{name: string, email: string, role: string} */
     public array $form = [
@@ -79,49 +80,49 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function saveUser(): void
     {
-        $selectedUser = $this->selectedUser;
+        $this->whileProcessing(function (): void {
+            $selectedUser = $this->selectedUser;
 
-        if ($selectedUser === null) {
-            return;
-        }
+            if ($selectedUser === null) {
+                return;
+            }
 
-        $validated = $this->validate([
-            'form.name' => ['required', 'string', 'max:255'],
-            'form.email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class, 'email')->ignore($selectedUser->id),
-            ],
-            'form.role' => ['required', Rule::enum(UserRole::class)],
-        ]);
+            $validated = $this->validate([
+                'form.name' => ['required', 'string', 'max:255'],
+                'form.email' => [
+                    'required',
+                    'string',
+                    'lowercase',
+                    'email',
+                    'max:255',
+                    Rule::unique(User::class, 'email')->ignore($selectedUser->id),
+                ],
+                'form.role' => ['required', Rule::enum(UserRole::class)],
+            ]);
 
-        $currentRole = $selectedUser->role;
-        $newRole = UserRole::from($validated['form']['role']);
+            $currentRole = $selectedUser->role;
+            $newRole = UserRole::from($validated['form']['role']);
 
-        if ($currentRole === UserRole::Admin && $newRole !== UserRole::Admin) {
-            if ($this->isLastActiveAdmin($selectedUser)) {
-                $this->addError('form.role', __('At least one active admin is required.'));
+            if ($currentRole === UserRole::Admin && $newRole !== UserRole::Admin && $this->isLastActiveAdmin($selectedUser)) {
+                $this->setError('form.role', __('At least one active admin is required.'));
 
                 return;
             }
-        }
 
-        $selectedUser->forceFill([
-            'name' => $validated['form']['name'],
-            'email' => $validated['form']['email'],
-            'role' => $newRole,
-        ]);
+            $selectedUser->forceFill([
+                'name' => $validated['form']['name'],
+                'email' => $validated['form']['email'],
+                'role' => $newRole,
+            ]);
 
-        if ($selectedUser->isDirty('email')) {
-            $selectedUser->email_verified_at = null;
-        }
+            if ($selectedUser->isDirty('email')) {
+                $selectedUser->email_verified_at = null;
+            }
 
-        $selectedUser->save();
+            $selectedUser->save();
 
-        $this->dispatch('user-saved', name: $selectedUser->name);
+            $this->dispatch('user-saved', name: $selectedUser->name);
+        });
     }
 
     public function confirmDeleteUser(): void
@@ -149,178 +150,188 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function deleteUser(): void
     {
-        $selectedUser = $this->selectedUser;
+        $this->whileProcessing(function (): void {
+            $selectedUser = $this->selectedUser;
 
-        if ($selectedUser === null) {
-            $this->confirmingDeletion = false;
-
-            return;
-        }
-
-        if ($selectedUser->is(auth()->user())) {
-            $this->confirmingDeletion = false;
-
-            return;
-        }
-
-        if ($selectedUser->isAdmin() && $this->isLastActiveAdmin($selectedUser)) {
-            $this->confirmingDeletion = false;
-            $this->addError('form.role', __('You must assign another admin before deleting this account.'));
-
-            return;
-        }
-
-        $selectedUser->delete();
-
-        $this->confirmingDeletion = false;
-        $this->selectedUserId = null;
-        $this->resetForm();
-        $this->resetPage();
-
-        $this->dispatch('user-deleted');
-    }
-
-    public function inviteUser(): void
-    {
-        $validated = $this->validate([
-            'inviteForm.name' => ['required', 'string', 'max:255'],
-            'inviteForm.email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class, 'email'),
-            ],
-            'inviteForm.role' => ['required', Rule::enum(UserRole::class)],
-        ]);
-
-        $role = UserRole::from($validated['inviteForm']['role']);
-
-        $user = User::query()->create([
-            'name' => $validated['inviteForm']['name'],
-            'email' => $validated['inviteForm']['email'],
-            'password' => Str::password(16),
-            'role' => $role,
-        ]);
-
-        $user->forceFill([
-            'invited_at' => now(),
-            'invited_by_id' => auth()->id(),
-            'email_verified_at' => null,
-            'suspended_at' => null,
-            'two_factor_secret' => null,
-            'two_factor_recovery_codes' => null,
-            'two_factor_confirmed_at' => null,
-        ])->save();
-
-        $status = Password::broker()->sendResetLink([
-            'email' => $user->email,
-        ]);
-
-        $this->selectedUserId = (int) $user->id;
-        $this->resetPage();
-        $this->populateForm();
-
-        if ($status === Password::RESET_LINK_SENT) {
-            $this->resetInviteForm();
-            $this->dispatch('user-invited', email: $user->email);
-        } else {
-            $this->addError('inviteForm.email', __($status));
-        }
-    }
-
-    public function sendPasswordResetLink(): void
-    {
-        $selectedUser = $this->selectedUser;
-
-        if ($selectedUser === null) {
-            return;
-        }
-
-        $status = Password::broker()->sendResetLink([
-            'email' => $selectedUser->email,
-        ]);
-
-        if ($status === Password::RESET_LINK_SENT) {
-            $this->dispatch('password-reset-link-sent', email: $selectedUser->email);
-
-            return;
-        }
-
-        $this->addError('form.email', __($status));
-    }
-
-    public function toggleSuspension(): void
-    {
-        $selectedUser = $this->selectedUser;
-
-        if ($selectedUser === null) {
-            return;
-        }
-
-        if ($selectedUser->is(auth()->user())) {
-            $this->addError('form.email', __('You cannot suspend your own account.'));
-
-            return;
-        }
-
-        if (! $selectedUser->isSuspended()) {
-            if ($selectedUser->isAdmin() && $this->isLastActiveAdmin($selectedUser)) {
-                $this->addError('form.role', __('You must assign another admin before suspending this account.'));
+            if ($selectedUser === null) {
+                $this->confirmingDeletion = false;
 
                 return;
             }
 
-            $selectedUser->forceFill([
-                'suspended_at' => now(),
-            ])->save();
+            if ($selectedUser->is(auth()->user())) {
+                $this->confirmingDeletion = false;
 
-            $this->dispatch('user-suspended');
-        } else {
-            $selectedUser->forceFill([
+                return;
+            }
+
+            if ($selectedUser->isAdmin() && $this->isLastActiveAdmin($selectedUser)) {
+                $this->confirmingDeletion = false;
+                $this->setError('form.role', __('You must assign another admin before deleting this account.'));
+
+                return;
+            }
+
+            $selectedUser->delete();
+
+            $this->confirmingDeletion = false;
+            $this->selectedUserId = null;
+            $this->resetForm();
+            $this->resetPage();
+
+            $this->dispatch('user-deleted');
+        });
+    }
+
+    public function inviteUser(): void
+    {
+        $this->whileProcessing(function (): void {
+            $validated = $this->validate([
+                'inviteForm.name' => ['required', 'string', 'max:255'],
+                'inviteForm.email' => [
+                    'required',
+                    'string',
+                    'lowercase',
+                    'email',
+                    'max:255',
+                    Rule::unique(User::class, 'email'),
+                ],
+                'inviteForm.role' => ['required', Rule::enum(UserRole::class)],
+            ]);
+
+            $role = UserRole::from($validated['inviteForm']['role']);
+
+            $user = User::query()->create([
+                'name' => $validated['inviteForm']['name'],
+                'email' => $validated['inviteForm']['email'],
+                'password' => Str::password(16),
+                'role' => $role,
+            ]);
+
+            $user->forceFill([
+                'invited_at' => now(),
+                'invited_by_id' => auth()->id(),
+                'email_verified_at' => null,
                 'suspended_at' => null,
+                'two_factor_secret' => null,
+                'two_factor_recovery_codes' => null,
+                'two_factor_confirmed_at' => null,
             ])->save();
 
-            $this->dispatch('user-activated');
-        }
+            $status = Password::broker()->sendResetLink([
+                'email' => $user->email,
+            ]);
 
-        $this->populateForm();
+            $this->selectedUserId = (int) $user->id;
+            $this->resetPage();
+            $this->populateForm();
+
+            if ($status === Password::RESET_LINK_SENT) {
+                $this->resetInviteForm();
+                $this->dispatch('user-invited', email: $user->email);
+            } else {
+                $this->setError('inviteForm.email', __($status));
+            }
+        });
+    }
+
+    public function sendPasswordResetLink(): void
+    {
+        $this->whileProcessing(function (): void {
+            $selectedUser = $this->selectedUser;
+
+            if ($selectedUser === null) {
+                return;
+            }
+
+            $status = Password::broker()->sendResetLink([
+                'email' => $selectedUser->email,
+            ]);
+
+            if ($status === Password::RESET_LINK_SENT) {
+                $this->dispatch('password-reset-link-sent', email: $selectedUser->email);
+
+                return;
+            }
+
+            $this->setError('form.email', __($status));
+        });
+    }
+
+    public function toggleSuspension(): void
+    {
+        $this->whileProcessing(function (): void {
+            $selectedUser = $this->selectedUser;
+
+            if ($selectedUser === null) {
+                return;
+            }
+
+            if ($selectedUser->is(auth()->user())) {
+                $this->setError('form.email', __('You cannot suspend your own account.'));
+
+                return;
+            }
+
+            if (! $selectedUser->isSuspended()) {
+                if ($selectedUser->isAdmin() && $this->isLastActiveAdmin($selectedUser)) {
+                    $this->setError('form.role', __('You must assign another admin before suspending this account.'));
+
+                    return;
+                }
+
+                $selectedUser->forceFill([
+                    'suspended_at' => now(),
+                ])->save();
+
+                $this->dispatch('user-suspended');
+            } else {
+                $selectedUser->forceFill([
+                    'suspended_at' => null,
+                ])->save();
+
+                $this->dispatch('user-activated');
+            }
+
+            $this->populateForm();
+        });
     }
 
     public function forcePasswordRotation(): void
     {
-        $selectedUser = $this->selectedUser;
+        $this->whileProcessing(function (): void {
+            $selectedUser = $this->selectedUser;
 
-        if ($selectedUser === null) {
-            return;
-        }
+            if ($selectedUser === null) {
+                return;
+            }
 
-        $temporaryPassword = Str::password(32);
-        $forcedById = auth()->id();
+            $temporaryPassword = Str::password(32);
+            $forcedById = auth()->id();
 
-        DB::transaction(function () use ($selectedUser, $temporaryPassword, $forcedById): void {
-            $selectedUser->forceFill([
-                'password' => $temporaryPassword,
-                'password_forced_at' => now(),
-                'password_forced_by_id' => $forcedById,
-                'remember_token' => Str::random(60),
-            ])->save();
+            DB::transaction(function () use ($selectedUser, $temporaryPassword, $forcedById): void {
+                $selectedUser->forceFill([
+                    'password' => $temporaryPassword,
+                    'password_forced_at' => now(),
+                    'password_forced_by_id' => $forcedById,
+                    'remember_token' => Str::random(60),
+                ])->save();
 
-            DB::table('sessions')
-                ->where('user_id', $selectedUser->id)
-                ->delete();
+                DB::table('sessions')
+                    ->where('user_id', $selectedUser->id)
+                    ->delete();
+            });
+
+            $status = Password::broker()->sendResetLink([
+                'email' => $selectedUser->email,
+            ]);
+
+            if ($status !== Password::RESET_LINK_SENT) {
+                $this->setError('form.email', __($status));
+            }
+
+            $this->dispatch('password-rotation-forced', email: $selectedUser->email);
         });
-
-        $status = Password::broker()->sendResetLink([
-            'email' => $selectedUser->email,
-        ]);
-
-        if ($status !== Password::RESET_LINK_SENT) {
-            $this->addError('form.email', __($status));
-        }
-
-        $this->dispatch('password-rotation-forced', email: $selectedUser->email);
     }
 
     #[Computed]
@@ -427,6 +438,27 @@ new #[Layout('components.layouts.app')] class extends Component {
         ];
     }
 
+    private function setError(string $key, string $message): void
+    {
+        $this->resetErrorBag($key);
+        $this->addError($key, $message);
+    }
+
+    private function whileProcessing(\Closure $callback): void
+    {
+        if ($this->isProcessing) {
+            return;
+        }
+
+        $this->isProcessing = true;
+
+        try {
+            $callback();
+        } finally {
+            $this->isProcessing = false;
+        }
+    }
+
     private function resolvePerPage(int $value): int
     {
         foreach (self::PER_PAGE_OPTIONS as $option) {
@@ -453,9 +485,25 @@ new #[Layout('components.layouts.app')] class extends Component {
     $users = $this->users;
     /** @var \App\Models\User|null $selectedUser */
     $selectedUser = $this->selectedUser;
+    $loadingTargets = 'saveUser,inviteUser,sendPasswordResetLink,toggleSuspension,forcePasswordRotation,deleteUser';
 @endphp
 
-<section class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<section
+    class="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
+    wire:loading.class="pointer-events-none select-none"
+    wire:target="{{ $loadingTargets }}"
+>
+    <div
+        wire:loading.flex
+        wire:target="{{ $loadingTargets }}"
+        class="absolute inset-0 z-20 items-center justify-center bg-white/70 backdrop-blur-sm dark:bg-zinc-950/60"
+    >
+        <div class="flex items-center gap-3 rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-zinc-700 shadow dark:bg-zinc-900/90 dark:text-zinc-200">
+            <flux:icon.arrow-path class="h-5 w-5 animate-spin text-purple-500" />
+            <span>{{ __('Processing...') }}</span>
+        </div>
+    </div>
+
     <div class="flex flex-col gap-2 pb-6">
         <flux:heading size="xl">{{ __('Users') }}</flux:heading>
 
@@ -703,7 +751,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
 
                     <div class="flex flex-wrap items-center gap-3">
-                        <flux:button type="submit" variant="primary">
+                        <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="{{ $loadingTargets }}">
                             {{ __('Save changes') }}
                         </flux:button>
 

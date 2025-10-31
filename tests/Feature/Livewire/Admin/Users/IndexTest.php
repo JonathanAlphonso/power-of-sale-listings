@@ -180,6 +180,39 @@ test('admins can suspend and reactivate users', function (): void {
     expect($subscriber->refresh()->isSuspended())->toBeFalse();
 });
 
+test('admins cannot trigger additional actions while processing another', function (): void {
+    $admin = User::factory()->admin()->create();
+    $subscriber = User::factory()->create();
+
+    $this->actingAs($admin);
+
+    $component = Volt::test('admin.users.index')
+        ->call('selectUser', $subscriber->id);
+
+    $component
+        ->set('isProcessing', true)
+        ->call('toggleSuspension');
+
+    expect($subscriber->refresh()->isSuspended())->toBeFalse();
+
+    $component
+        ->set('isProcessing', false)
+        ->call('toggleSuspension')
+        ->assertSet('isProcessing', false);
+
+    expect($subscriber->refresh()->isSuspended())->toBeTrue();
+});
+
+test('users index renders a processing indicator for privileged actions', function (): void {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin);
+
+    Volt::test('admin.users.index')
+        ->assertSeeHtml('wire:loading.flex')
+        ->assertSee('Processing...');
+});
+
 test('the final active admin cannot be demoted or suspended via the workspace', function (): void {
     $admin = User::factory()->admin()->create([
         'name' => 'Primary Admin',

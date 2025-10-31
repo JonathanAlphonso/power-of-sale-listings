@@ -31,7 +31,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
         Session::regenerate();
 
-        $this->redirectIntended(route('dashboard', absolute: false), navigate: true);
+        $redirectTo = $user->isAdmin()
+            ? route('dashboard', absolute: false)
+            : route('profile.edit', absolute: false);
+
+        $this->redirectIntended($redirectTo, navigate: true);
     }
 }; ?>
 

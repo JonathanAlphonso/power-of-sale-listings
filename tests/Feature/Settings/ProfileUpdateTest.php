@@ -9,6 +9,19 @@ test('profile page is displayed', function () {
     $this->get(route('profile.edit'))->assertOk();
 });
 
+test('subscriber does not see admin navigation links', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user);
+
+    $this
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertDontSee(route('dashboard', absolute: false))
+        ->assertDontSee(route('admin.listings.index', absolute: false))
+        ->assertDontSee(route('admin.users.index', absolute: false));
+});
+
 test('profile information can be updated', function () {
     $user = User::factory()->create();
 

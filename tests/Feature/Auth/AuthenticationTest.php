@@ -20,9 +20,22 @@ test('users can authenticate using the login screen', function () {
 
     $response
         ->assertHasNoErrors()
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('profile.edit', absolute: false));
 
     $this->assertAuthenticated();
+});
+
+test('admins are redirected to the dashboard after login', function () {
+    $admin = User::factory()->admin()->withoutTwoFactor()->create();
+
+    $response = LivewireVolt::test('auth.login')
+        ->set('email', $admin->email)
+        ->set('password', 'password')
+        ->call('login');
+
+    $response
+        ->assertHasNoErrors()
+        ->assertRedirect(route('dashboard', absolute: false));
 });
 
 test('users can not authenticate with invalid password', function () {

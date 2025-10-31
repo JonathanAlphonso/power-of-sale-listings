@@ -5,33 +5,42 @@
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+            @php
+                $currentUser = auth()->user();
+                $homeRoute = $currentUser?->isAdmin()
+                    ? route('dashboard', absolute: false)
+                    : route('home', absolute: false);
+            @endphp
+
             <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-            <a href="{{ route('dashboard') }}" class="me-5 flex items-center space-x-2 rtl:space-x-reverse" wire:navigate>
+            <a href="{{ $homeRoute }}" class="me-5 flex items-center space-x-2 rtl:space-x-reverse" wire:navigate>
                 <x-app-logo />
             </a>
 
-            <flux:navlist variant="outline">
-                <flux:navlist.group :heading="__('Platform')" class="grid">
-                    <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
-                    <flux:navlist.item
-                        icon="table-cells"
-                        :href="route('admin.listings.index')"
-                        :current="request()->routeIs('admin.listings.*')"
-                        wire:navigate
-                    >
-                        {{ __('Listings') }}
-                    </flux:navlist.item>
-                    <flux:navlist.item
-                        icon="users"
-                        :href="route('admin.users.index')"
-                        :current="request()->routeIs('admin.users.index')"
-                        wire:navigate
-                    >
-                        {{ __('Users') }}
-                    </flux:navlist.item>
-                </flux:navlist.group>
-            </flux:navlist>
+            @if ($currentUser?->isAdmin())
+                <flux:navlist variant="outline">
+                    <flux:navlist.group :heading="__('Platform')" class="grid">
+                        <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
+                        <flux:navlist.item
+                            icon="table-cells"
+                            :href="route('admin.listings.index')"
+                            :current="request()->routeIs('admin.listings.*')"
+                            wire:navigate
+                        >
+                            {{ __('Listings') }}
+                        </flux:navlist.item>
+                        <flux:navlist.item
+                            icon="users"
+                            :href="route('admin.users.index')"
+                            :current="request()->routeIs('admin.users.index')"
+                            wire:navigate
+                        >
+                            {{ __('Users') }}
+                        </flux:navlist.item>
+                    </flux:navlist.group>
+                </flux:navlist>
+            @endif
 
             <flux:spacer />
 

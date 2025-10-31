@@ -18,7 +18,7 @@ test('new users can register', function () {
 
     $response
         ->assertHasNoErrors()
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('profile.edit', absolute: false));
 
     $this->assertAuthenticated();
 });

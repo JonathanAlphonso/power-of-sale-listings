@@ -145,17 +145,6 @@ class Listing extends Model
     }
 
     /**
-     * Scope queries to exclude rental listings from result sets.
-     *
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeWithoutRentals(Builder $query): Builder
-    {
-        return $query;
-    }
-
-    /**
      * Scope to listings that are not currently suppressed.
      *
      * @param  Builder<self>  $query

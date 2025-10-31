@@ -60,7 +60,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->perPage = (string) $this->resolvePerPage((int) $this->perPage);
 
         $this->selectedListingId ??= Listing::query()
-            ->withoutRentals()
             ->latest('modified_at')
             ->value('id');
 
@@ -287,7 +286,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $paginator = Listing::query()
-            ->withoutRentals()
             ->with($with)
             ->when($this->search !== '', function (Builder $builder): void {
                 $builder->where(function (Builder $query): void {
@@ -323,7 +321,6 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function availableStatuses(): SupportCollection
     {
         return Listing::query()
-            ->withoutRentals()
             ->select('display_status')
             ->distinct()
             ->whereNotNull('display_status')
@@ -353,7 +350,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $listing = Listing::query()
-            ->withoutRentals()
             ->with(
                 collect([
                     'media',

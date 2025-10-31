@@ -34,6 +34,8 @@ class UserFactory extends Factory
             'two_factor_confirmed_at' => now(),
             'role' => UserRole::Subscriber,
             'invited_at' => now(),
+            'password_forced_at' => null,
+            'password_forced_by_id' => null,
         ];
     }
 

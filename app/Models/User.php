@@ -54,6 +54,7 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'suspended_at' => 'datetime',
             'invited_at' => 'datetime',
+            'password_forced_at' => 'datetime',
         ];
     }
 
@@ -83,6 +84,14 @@ class User extends Authenticatable
     public function invitedBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'invited_by_id');
+    }
+
+    /**
+     * @return BelongsTo<User, User>
+     */
+    public function passwordForcedBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'password_forced_by_id');
     }
 
     public function scopeAdmins(Builder $builder): Builder

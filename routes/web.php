@@ -46,7 +46,6 @@ Route::get('/', function () {
         if (Schema::hasTable((new Listing)->getTable())) {
             $listingsTableExists = true;
             $sampleListings = Listing::query()
-                ->withoutRentals()
                 ->visible()
                 ->with(['source', 'municipality', 'media'])
                 ->latest('modified_at')
@@ -99,18 +98,12 @@ Route::get('listings/{listing}', function (Listing $listing) {
 })->name('listings.show');
 
 Route::get('dashboard', function () {
-    $totalListings = Listing::query()
-        ->withoutRentals()
-        ->count();
+    $totalListings = Listing::query()->count();
     $availableListings = Listing::query()
-        ->withoutRentals()
         ->where('display_status', 'Available')
         ->count();
-    $averageListPrice = Listing::query()
-        ->withoutRentals()
-        ->avg('list_price');
+    $averageListPrice = Listing::query()->avg('list_price');
     $recentListings = Listing::query()
-        ->withoutRentals()
         ->with(['municipality:id,name', 'source:id,name'])
         ->latest('modified_at')
         ->limit(5)

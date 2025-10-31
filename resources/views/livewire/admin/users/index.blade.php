@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -229,6 +230,27 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
+    public function sendPasswordResetLink(): void
+    {
+        $selectedUser = $this->selectedUser;
+
+        if ($selectedUser === null) {
+            return;
+        }
+
+        $status = Password::broker()->sendResetLink([
+            'email' => $selectedUser->email,
+        ]);
+
+        if ($status === Password::RESET_LINK_SENT) {
+            $this->dispatch('password-reset-link-sent', email: $selectedUser->email);
+
+            return;
+        }
+
+        $this->addError('form.email', __($status));
+    }
+
     public function toggleSuspension(): void
     {
         $selectedUser = $this->selectedUser;
@@ -264,6 +286,41 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->populateForm();
+    }
+
+    public function forcePasswordRotation(): void
+    {
+        $selectedUser = $this->selectedUser;
+
+        if ($selectedUser === null) {
+            return;
+        }
+
+        $temporaryPassword = Str::password(32);
+        $forcedById = auth()->id();
+
+        DB::transaction(function () use ($selectedUser, $temporaryPassword, $forcedById): void {
+            $selectedUser->forceFill([
+                'password' => $temporaryPassword,
+                'password_forced_at' => now(),
+                'password_forced_by_id' => $forcedById,
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            DB::table('sessions')
+                ->where('user_id', $selectedUser->id)
+                ->delete();
+        });
+
+        $status = Password::broker()->sendResetLink([
+            'email' => $selectedUser->email,
+        ]);
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            $this->addError('form.email', __($status));
+        }
+
+        $this->dispatch('password-rotation-forced', email: $selectedUser->email);
     }
 
     #[Computed]
@@ -650,6 +707,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                             {{ __('Save changes') }}
                         </flux:button>
 
+                        <flux:button type="button" variant="subtle" wire:click="sendPasswordResetLink" wire:loading.attr="disabled">
+                            {{ __('Email password reset link') }}
+                        </flux:button>
+
+                        <flux:button type="button" variant="danger" icon="key" wire:click="forcePasswordRotation" wire:loading.attr="disabled">
+                            {{ __('Force credential rotation') }}
+                        </flux:button>
+
                         @if ($selectedUser->isSuspended())
                             <flux:button type="button" variant="primary" wire:click="toggleSuspension" wire:loading.attr="disabled">
                                 {{ __('Activate user') }}
@@ -678,6 +743,14 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                         <x-action-message on="user-deleted" class="text-sm text-emerald-600 dark:text-emerald-400">
                             {{ __('User removed.') }}
+                        </x-action-message>
+
+                        <x-action-message on="password-reset-link-sent" class="text-sm text-emerald-600 dark:text-emerald-400">
+                            {{ __('Password reset email sent.') }}
+                        </x-action-message>
+
+                        <x-action-message on="password-rotation-forced" class="text-sm text-emerald-600 dark:text-emerald-400">
+                            {{ __('Credentials rotation forced.') }}
                         </x-action-message>
                     </div>
                 </form>

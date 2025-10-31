@@ -4,7 +4,9 @@ namespace Database\Factories;
 
 use App\Models\Municipality;
 use App\Models\Source;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -77,5 +79,25 @@ class ListingFactory extends Factory
                 'notes' => fake()->sentence(),
             ],
         ];
+    }
+
+    /**
+     * Indicate that the listing is suppressed.
+     *
+     * @return $this
+     */
+    public function suppressed(?Carbon $expiresAt = null): self
+    {
+        return $this->state(function () use ($expiresAt): array {
+            $suppressedAt = now();
+
+            return [
+                'suppressed_at' => $suppressedAt,
+                'suppression_expires_at' => $expiresAt,
+                'suppressed_by_user_id' => User::factory(),
+                'suppression_reason' => fake()->sentence(),
+                'suppression_notes' => fake()->optional()->paragraph(),
+            ];
+        });
     }
 }

@@ -47,6 +47,7 @@ Route::get('/', function () {
             $listingsTableExists = true;
             $sampleListings = Listing::query()
                 ->withoutRentals()
+                ->visible()
                 ->with(['source', 'municipality', 'media'])
                 ->latest('modified_at')
                 ->limit(3)
@@ -70,6 +71,7 @@ Route::get('/', function () {
 
 Route::get('listings', function () {
     $listings = Listing::query()
+        ->visible()
         ->with(['source:id,name', 'municipality:id,name', 'media'])
         ->latest('modified_at')
         ->paginate(12);
@@ -80,6 +82,10 @@ Route::get('listings', function () {
 })->name('listings.index');
 
 Route::get('listings/{listing}', function (Listing $listing) {
+    if ($listing->isSuppressed()) {
+        abort(404);
+    }
+
     $listing->load([
         'media' => fn ($query) => $query->orderBy('position'),
         'source:id,name',

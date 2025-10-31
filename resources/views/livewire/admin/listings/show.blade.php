@@ -13,23 +13,36 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Locked]
     public int $listingId;
 
+    public bool $suppressionAvailable = false;
+
     public function mount(Listing $listing): void
     {
         $this->listingId = $listing->getKey();
+        $this->suppressionAvailable = Listing::suppressionSchemaAvailable();
     }
 
     #[Computed]
     public function listing(): Listing
     {
+        $with = [
+            'media' => fn ($query) => $query->orderBy('position'),
+            'source:id,name',
+            'municipality:id,name',
+            'statusHistory' => fn ($query) => $query
+                ->with('source:id,name')
+                ->orderByDesc('changed_at'),
+        ];
+
+        if ($this->suppressionAvailable) {
+            $with[] = 'suppressedBy:id,name';
+            $with['currentSuppression'] = fn ($query) => $query->with(['user:id,name', 'releaseUser:id,name']);
+            $with['suppressions'] = fn ($query) => $query
+                ->with(['user:id,name', 'releaseUser:id,name'])
+                ->orderByDesc('suppressed_at');
+        }
+
         return Listing::query()
-            ->with([
-                'media' => fn ($query) => $query->orderBy('position'),
-                'source:id,name',
-                'municipality:id,name',
-                'statusHistory' => fn ($query) => $query
-                    ->with('source:id,name')
-                    ->orderByDesc('changed_at'),
-            ])
+            ->with($with)
             ->findOrFail($this->listingId);
     }
 
@@ -38,6 +51,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $listing = $this->listing;
         $timezone = Config::get('app.timezone');
+        $suppressionAvailable = $this->suppressionAvailable;
 
         return [
             [
@@ -50,6 +64,29 @@ new #[Layout('components.layouts.app')] class extends Component {
                     [
                         'label' => __('Display status'),
                         'value' => $listing->display_status ?? '—',
+                    ],
+                    [
+                        'label' => __('Suppressed'),
+                        'value' => match (true) {
+                            ! $suppressionAvailable => __('Unavailable — run the latest migrations'),
+                            $listing->suppressed_at !== null => __('Yes — since :date (:diff)', [
+                                'date' => $listing->suppressed_at->timezone($timezone)->format('M j, Y g:i a'),
+                                'diff' => $listing->suppressed_at->diffForHumans(),
+                            ]),
+                            default => __('No'),
+                        },
+                    ],
+                    [
+                        'label' => __('Suppression expires'),
+                        'value' => $suppressionAvailable
+                            ? ($listing->suppression_expires_at !== null
+                                ? $listing->suppression_expires_at->timezone($timezone)->format('M j, Y g:i a')
+                                : __('No expiry'))
+                            : __('Unavailable'),
+                    ],
+                    [
+                        'label' => __('Suppression reason'),
+                        'value' => $suppressionAvailable ? ($listing->suppression_reason ?? '—') : __('Unavailable'),
                     ],
                     [
                         'label' => __('List price'),
@@ -201,6 +238,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     $metadataPanels = $this->metadataPanels;
     $gallery = $this->gallery;
     $history = $this->history;
+    $suppressionAvailable = $this->suppressionAvailable;
+    $currentSuppression = $suppressionAvailable ? $listing->currentSuppression : null;
+    $suppressionHistory = $suppressionAvailable ? $listing->suppressions : collect();
+    $appTimezone = Config::get('app.timezone');
 
     $primaryPhoto = $gallery->firstWhere('is_primary', true) ?? $gallery->first();
     $cityLabel = $listing->city ?? null;
@@ -227,9 +268,17 @@ new #[Layout('components.layouts.app')] class extends Component {
             {{ __('Back to listings') }}
         </flux:button>
 
-        <flux:badge color="{{ ListingPresentation::statusBadge($listing->display_status) }}" size="md">
-            {{ $listing->display_status ?? __('Unknown status') }}
-        </flux:badge>
+        <div class="flex items-center gap-2">
+            <flux:badge color="{{ ListingPresentation::statusBadge($listing->display_status) }}" size="md">
+                {{ $listing->display_status ?? __('Unknown status') }}
+            </flux:badge>
+
+            @if ($suppressionAvailable && $listing->isSuppressed())
+                <flux:badge color="red" size="sm">
+                    {{ __('Suppressed') }}
+                </flux:badge>
+            @endif
+        </div>
     </div>
 
     <div class="mt-6 flex flex-col gap-4">
@@ -365,6 +414,161 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
 
         <div class="flex flex-col gap-6">
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div class="flex flex-col gap-2">
+                    <flux:heading size="md">{{ __('Suppression status') }}</flux:heading>
+                    <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ __('Track manual suppressions and expirations recorded against this listing.') }}
+                    </flux:text>
+                </div>
+
+                @if (! $suppressionAvailable)
+                    <flux:callout class="mt-4 rounded-xl">
+                        <flux:callout.heading>{{ __('Migrations required') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('Run the latest database migrations to enable suppression insights in this environment.') }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @elseif ($listing->isSuppressed() && $currentSuppression !== null)
+                    <div class="mt-4 space-y-3 rounded-xl border border-dashed border-red-300/60 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-700/40 dark:bg-red-900/30 dark:text-red-200">
+                        <div class="flex items-start justify-between gap-2">
+                            <span class="font-semibold">{{ $currentSuppression->reason }}</span>
+                            <flux:badge color="red" size="xs">
+                                {{ __('Active') }}
+                            </flux:badge>
+                        </div>
+
+                        @if ($currentSuppression->notes)
+                            <p class="text-xs">{{ $currentSuppression->notes }}</p>
+                        @endif
+
+                        <dl class="mt-3 grid gap-2 text-[11px] uppercase tracking-wide text-red-800 dark:text-red-200">
+                            <div class="flex flex-col">
+                                <dt>{{ __('Suppressed by') }}</dt>
+                                <dd class="text-red-700 dark:text-red-100">
+                                    {{ $currentSuppression->user?->name ?? __('System') }}
+                                </dd>
+                            </div>
+                            <div class="flex flex-col">
+                                <dt>{{ __('Suppressed at') }}</dt>
+                                <dd class="text-red-700 dark:text-red-100">
+                                    {{ optional($currentSuppression->suppressed_at)?->timezone($appTimezone)?->format('M j, Y g:i a') ?? '—' }}
+                                </dd>
+                            </div>
+                            <div class="flex flex-col">
+                                <dt>{{ __('Expires') }}</dt>
+                                <dd class="text-red-700 dark:text-red-100">
+                                    @if ($currentSuppression->expires_at === null)
+                                        {{ __('No expiry') }}
+                                    @else
+                                        {{ $currentSuppression->expires_at->timezone($appTimezone)->format('M j, Y g:i a') }}
+                                        <span class="block text-[10px] normal-case">
+                                            {{ $currentSuppression->expires_at->diffForHumans() }}
+                                        </span>
+                                    @endif
+                                </dd>
+                            </div>
+                            <div class="flex flex-col">
+                                <dt>{{ __('Recorded by') }}</dt>
+                                <dd class="text-red-700 dark:text-red-100">
+                                    {{ $listing->suppressedBy?->name ?? __('System') }}
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                @else
+                    <flux:callout class="mt-4 rounded-xl">
+                        <flux:callout.heading>{{ __('Not currently suppressed') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('This listing is eligible for public exposure. Use the admin listings workspace to initiate a manual suppression when needed.') }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @endif
+
+                @if ($suppressionAvailable && $suppressionHistory->isNotEmpty())
+                    <div class="mt-6 space-y-3">
+                        <flux:text class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            {{ __('Suppression events') }}
+                        </flux:text>
+
+                        @foreach ($suppressionHistory as $record)
+                            <div class="rounded-xl border border-zinc-200 bg-white/80 p-4 text-sm text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-300">
+                                <div class="flex items-start justify-between gap-3">
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {{ $record->reason }}
+                                    </span>
+                                    <flux:badge color="{{ $record->released_at !== null ? 'green' : 'zinc' }}" size="xs">
+                                        {{ $record->released_at !== null ? __('Released') : __('Suppressed') }}
+                                    </flux:badge>
+                                </div>
+
+                                @if ($record->notes)
+                                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                        {{ $record->notes }}
+                                    </p>
+                                @endif
+
+                                <dl class="mt-3 grid gap-3 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    <div>
+                                        <dt>{{ __('Suppressed at') }}</dt>
+                                        <dd class="text-zinc-700 dark:text-zinc-200">
+                                            {{ optional($record->suppressed_at)?->timezone($appTimezone)?->format('M j, Y g:i a') ?? '—' }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt>{{ __('Suppressed by') }}</dt>
+                                        <dd class="text-zinc-700 dark:text-zinc-200">
+                                            {{ $record->user?->name ?? __('System') }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt>{{ __('Expires') }}</dt>
+                                        <dd class="text-zinc-700 dark:text-zinc-200">
+                                            @if ($record->expires_at === null)
+                                                {{ __('No expiry') }}
+                                            @else
+                                                {{ $record->expires_at->timezone($appTimezone)->format('M j, Y g:i a') }}
+                                            @endif
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt>{{ __('Released at') }}</dt>
+                                        <dd class="text-zinc-700 dark:text-zinc-200">
+                                            @if ($record->released_at !== null)
+                                                {{ $record->released_at->timezone($appTimezone)->format('M j, Y g:i a') }}
+                                                <span class="block text-[10px] normal-case">
+                                                    {{ $record->releaseUser?->name ?? __('System') }}
+                                                </span>
+                                            @else
+                                                {{ __('Pending') }}
+                                            @endif
+                                        </dd>
+                                    </div>
+
+                                    @if ($record->release_reason)
+                                        <div class="normal-case">
+                                            <dt>{{ __('Release reason') }}</dt>
+                                            <dd class="text-zinc-700 dark:text-zinc-200">
+                                                {{ $record->release_reason }}
+                                            </dd>
+                                        </div>
+                                    @endif
+
+                                    @if ($record->release_notes)
+                                        <div class="normal-case">
+                                            <dt>{{ __('Release notes') }}</dt>
+                                            <dd class="text-zinc-700 dark:text-zinc-200">
+                                                {{ $record->release_notes }}
+                                            </dd>
+                                        </div>
+                                    @endif
+                                </dl>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
             <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
                 <div class="flex flex-col gap-2">
                     <flux:heading size="md">{{ __('Media gallery') }}</flux:heading>

@@ -90,6 +90,14 @@ class User extends Authenticatable
         return $builder->where('role', UserRole::Admin);
     }
 
+    /**
+     * @return HasMany<ListingSuppression>
+     */
+    public function listingSuppressions(): HasMany
+    {
+        return $this->hasMany(ListingSuppression::class);
+    }
+
     public function scopeActive(Builder $builder): Builder
     {
         return $builder->whereNull('suspended_at');

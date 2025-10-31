@@ -20,7 +20,7 @@
 - [x] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
 - [x] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
 - [x] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
-- [ ] Allow admins to delete individual listings with confirmation flows and audit log entries.
+- [x] Add admin listing suppression workflow (soft-unpublish with audit trail & expiry) while reserving hard deletes for automated stale/orphan cleanup.
 - [ ] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.
 - [ ] Implement authorization policies and gates leveraging the new role model; ensure policy tests cover allow/deny paths.
 - [ ] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.

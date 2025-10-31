@@ -38,6 +38,15 @@
                         >
                             {{ $listing->display_status ?? __('Unknown') }}
                         </flux:badge>
+
+                        @if ($listing->isSuppressed())
+                            <flux:text class="mt-1 text-[11px] uppercase tracking-wide text-red-500 dark:text-red-300">
+                                {{ __('Suppressed') }}
+                                @if ($listing->suppression_expires_at)
+                                    • {{ $listing->suppression_expires_at->diffForHumans() }}
+                                @endif
+                            </flux:text>
+                        @endif
                     </flux:table.cell>
 
                     <flux:table.cell alignment="center">

@@ -63,3 +63,43 @@ test('guests can view a listing detail page', function (): void {
         ->assertSee('Barrie (Letitia Heights), Ontario L4N5B1')
         ->assertSee('MLS® Number: S12426397');
 });
+
+test('suppressed listings are hidden from the public catalog', function (): void {
+    $visibleListing = Listing::factory()->create([
+        'street_address' => '101 Harbour Street',
+        'city' => 'Toronto',
+        'display_status' => 'Available',
+        'modified_at' => now(),
+    ]);
+
+    $suppressedListing = Listing::factory()
+        ->suppressed()
+        ->create([
+            'street_address' => 'Hidden Lane',
+            'display_status' => 'Available',
+            'modified_at' => now()->subDay(),
+        ]);
+
+    $expiredSuppression = Listing::factory()
+        ->suppressed(now()->subDay())
+        ->create([
+            'street_address' => 'Reinstated Court',
+            'display_status' => 'Available',
+            'modified_at' => now()->subHours(6),
+        ]);
+
+    $this->get(route('listings.index'))
+        ->assertOk()
+        ->assertSee($visibleListing->street_address)
+        ->assertSee($expiredSuppression->street_address)
+        ->assertDontSee($suppressedListing->street_address);
+
+    $this->get(route('listings.show', $visibleListing))
+        ->assertOk();
+
+    $this->get(route('listings.show', $suppressedListing))
+        ->assertNotFound();
+
+    $this->get(route('listings.show', $expiredSuppression))
+        ->assertOk();
+});

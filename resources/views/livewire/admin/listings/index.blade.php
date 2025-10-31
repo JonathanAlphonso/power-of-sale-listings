@@ -9,6 +9,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -57,6 +58,8 @@ new #[Layout('components.layouts.app')] class extends Component {
      */
     public function mount(): void
     {
+        Gate::authorize('viewAny', Listing::class);
+
         $this->perPage = (string) $this->resolvePerPage((int) $this->perPage);
 
         $this->selectedListingId ??= Listing::query()
@@ -112,6 +115,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         if ($listing === null) {
             return;
         }
+
+        Gate::authorize('suppress', $listing);
 
         if (! $this->suppressionAvailable) {
             $this->addError('suppressionForm.reason', __('Suppression controls are unavailable until the latest database migrations have been run.'));
@@ -197,6 +202,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         if ($listing === null || ! $listing->isSuppressed()) {
             return;
         }
+
+        Gate::authorize('unsuppress', $listing);
 
         if (! $this->suppressionAvailable) {
             $this->addError('unsuppressionForm.reason', __('Suppression controls are unavailable until the latest database migrations have been run.'));

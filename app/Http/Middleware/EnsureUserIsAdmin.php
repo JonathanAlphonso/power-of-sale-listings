@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureUserIsAdmin
@@ -27,23 +28,23 @@ class EnsureUserIsAdmin
             abort(403);
         }
 
-        if ($user->isAdmin()) {
-            return $next($request);
-        }
+        if (! $user->isAdmin()) {
+            $hasActiveAdmins = User::query()
+                ->admins()
+                ->active()
+                ->exists();
 
-        $hasActiveAdmins = User::query()
-            ->admins()
-            ->active()
-            ->exists();
+            if ($hasActiveAdmins) {
+                abort(403);
+            }
 
-        if (! $hasActiveAdmins) {
             $user->forceFill([
                 'role' => UserRole::Admin,
             ])->save();
-
-            return $next($request);
         }
 
-        abort(403);
+        Gate::authorize('access-admin-area');
+
+        return $next($request);
     }
 }

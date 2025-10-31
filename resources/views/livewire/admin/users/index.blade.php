@@ -4,6 +4,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -48,6 +49,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function mount(): void
     {
+        Gate::authorize('viewAny', User::class);
+
         $this->perPage = (string) $this->resolvePerPage((int) $this->perPage);
         $this->primeSelection();
     }
@@ -86,6 +89,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             if ($selectedUser === null) {
                 return;
             }
+
+            Gate::authorize('update', $selectedUser);
 
             $validated = $this->validate([
                 'form.name' => ['required', 'string', 'max:255'],
@@ -145,6 +150,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             return;
         }
 
+        Gate::authorize('delete', $selectedUser);
+
         $this->confirmingDeletion = true;
     }
 
@@ -172,6 +179,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                 return;
             }
 
+            Gate::authorize('delete', $selectedUser);
+
             $selectedUser->delete();
 
             $this->confirmingDeletion = false;
@@ -186,6 +195,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function inviteUser(): void
     {
         $this->whileProcessing(function (): void {
+            Gate::authorize('create', User::class);
+
             $validated = $this->validate([
                 'inviteForm.name' => ['required', 'string', 'max:255'],
                 'inviteForm.email' => [
@@ -244,6 +255,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                 return;
             }
 
+            Gate::authorize('sendPasswordResetLink', $selectedUser);
+
             $status = Password::broker()->sendResetLink([
                 'email' => $selectedUser->email,
             ]);
@@ -272,6 +285,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 return;
             }
+
+            Gate::authorize('suspend', $selectedUser);
 
             if (! $selectedUser->isSuspended()) {
                 if ($selectedUser->isAdmin() && $this->isLastActiveAdmin($selectedUser)) {
@@ -305,6 +320,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             if ($selectedUser === null) {
                 return;
             }
+
+            Gate::authorize('forcePasswordRotation', $selectedUser);
 
             $temporaryPassword = Str::password(32);
             $forcedById = auth()->id();

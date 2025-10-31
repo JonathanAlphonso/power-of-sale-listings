@@ -3,6 +3,7 @@
 use App\Models\Listing;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Features;
@@ -98,6 +99,8 @@ Route::get('listings/{listing}', function (Listing $listing) {
 })->name('listings.show');
 
 Route::get('dashboard', function () {
+    Gate::authorize('view-admin-dashboard');
+
     $totalListings = Listing::query()->count();
     $availableListings = Listing::query()
         ->where('display_status', 'Available')

@@ -4,6 +4,7 @@ use App\Models\Listing;
 use App\Support\ListingPresentation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
@@ -17,6 +18,8 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function mount(Listing $listing): void
     {
+        Gate::authorize('view', $listing);
+
         $this->listingId = $listing->getKey();
         $this->suppressionAvailable = Listing::suppressionSchemaAvailable();
     }

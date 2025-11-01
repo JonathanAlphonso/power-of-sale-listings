@@ -4,43 +4,34 @@ namespace App\Policies;
 
 use App\Models\Listing;
 use App\Models\User;
+use App\Policies\Concerns\AuthorizesAdmins;
 
 class ListingPolicy
 {
-    /**
-     * Run before any other authorization checks.
-     */
-    public function before(User $user): ?bool
-    {
-        if ($user->isSuspended()) {
-            return false;
-        }
-
-        return null;
-    }
+    use AuthorizesAdmins;
 
     public function viewAny(User $user): bool
     {
-        return $user->isAdmin();
+        return $this->allowsAdmin($user);
     }
 
     public function view(User $user, Listing $listing): bool
     {
-        return $user->isAdmin();
+        return $this->allowsAdmin($user);
     }
 
     public function update(User $user, Listing $listing): bool
     {
-        return $user->isAdmin();
+        return $this->allowsAdmin($user);
     }
 
     public function suppress(User $user, Listing $listing): bool
     {
-        return $user->isAdmin();
+        return $this->allowsAdmin($user);
     }
 
     public function unsuppress(User $user, Listing $listing): bool
     {
-        return $user->isAdmin();
+        return $this->allowsAdmin($user);
     }
 }

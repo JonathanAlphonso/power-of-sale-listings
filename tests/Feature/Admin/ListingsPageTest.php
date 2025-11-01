@@ -13,7 +13,7 @@ test('guests are redirected from the listings index', function (): void {
 });
 
 test('authenticated users can browse, filter, and preview listings', function (): void {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $toronto = Municipality::factory()->create(['name' => 'Toronto']);
     $ottawa = Municipality::factory()->create(['name' => 'Ottawa']);
@@ -39,6 +39,7 @@ test('authenticated users can browse, filter, and preview listings', function ()
         ]);
 
     $this->actingAs($user);
+    Volt::actingAs($user);
 
     Volt::test('admin.listings.index')
         ->assertSee($availableListing->mls_number)
@@ -78,6 +79,7 @@ test('admins can suppress and unsuppress listings with audit logging', function 
     $expiresAt = Carbon::now()->addDays(5)->setSecond(0)->setMicrosecond(0);
 
     $this->actingAs($admin);
+    Volt::actingAs($admin);
 
     $component = Volt::test('admin.listings.index')
         ->call('selectListing', $listing->id)

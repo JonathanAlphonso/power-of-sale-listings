@@ -34,12 +34,14 @@ Operational guidance for maintaining the project across local development, CI, a
 4. **Provision schema**
    ```bash
    mysql -u <user> -p -e "CREATE DATABASE IF NOT EXISTS <database> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-   php artisan migrate
+   php artisan migrate --graceful
    ```
+   Use the graceful flag whenever you pull new migrations so the command exits cleanly when no changes are pending.
 5. **Seed reference data (optional)**
    ```bash
-   php artisan db:seed
+   php artisan db:seed --class=Database\Seeders\DatabaseSeeder
    ```
+   The seeder provisions the administrator (`admin@powerofsale.test`) and analyst (`analyst@powerofsale.test`) demo accounts with the password `password`, and populates sample listings, municipalities, and analytics defaults.
 
 ### Flux UI Credentials
 
@@ -57,10 +59,21 @@ For CI, populate `FLUX_USERNAME` and `FLUX_LICENSE_KEY` secrets.
 | --- | --- |
 | Serve PHP via Herd | Managed automatically once site is added in Herd UI. |
 | Serve PHP manually (WSL-only) | `php artisan serve` |
+| Apply pending migrations | `php artisan migrate --graceful` |
+| Seed demo data | `php artisan db:seed --class=Database\Seeders\DatabaseSeeder` |
 | Run Vite dev server | `npm run dev` |
 | Queue worker (database driver) | `php artisan queue:work` |
 | Run scheduled tasks manually | `php artisan schedule:run` |
 | Reset database | `php artisan migrate:fresh --seed` |
+
+### Admin Workspace
+
+After seeding, sign in with the administrator account to reach the secured workspace. All of the routes below require the `admin` middleware:
+
+- `/dashboard` — admin overview with analytics summary and activity feeds.
+- `/admin/listings` — browse, filter, suppress, and review listings.
+- `/admin/users` — invite new teammates, rotate credentials, manage suspensions.
+- `/admin/settings/analytics` — configure Google Analytics property, credentials, and client tracking.
 
 ## Quality Gates
 

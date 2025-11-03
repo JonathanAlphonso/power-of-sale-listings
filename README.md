@@ -40,13 +40,28 @@ Ensure the following tooling is available locally before installing dependencies
 4. **Provision the database**
    ```bash
    mysql -u <user> -p -e "CREATE DATABASE IF NOT EXISTS <database> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-   php artisan migrate
+   php artisan migrate --graceful
    ```
-5. **Seed reference users (optional but recommended)**
+   Re-run the migration command any time new migrations land; the `--graceful` flag prevents non-zero exits when no changes are pending.
+5. **Seed reference data (optional but recommended)**
    ```bash
-   php artisan db:seed
+   php artisan db:seed --class=Database\Seeders\DatabaseSeeder
    ```
-   Two pre-configured accounts (`Administrator` and `Analyst`) receive the default password defined in `DatabaseSeeder`.
+   The seeder provisions demo accounts and listings that align with the admin workspace:
+
+   | Account | Email | Role | Password |
+   | --- | --- | --- | --- |
+   | Administrator | `admin@powerofsale.test` | Admin | `password` |
+   | Analyst | `analyst@powerofsale.test` | Subscriber | `password` |
+
+### Admin Workspace URLs
+
+Once seeded, sign in as the administrator to reach the secured workspace. These routes all require the `Admin` role:
+
+- `/dashboard` — analytics snapshot and recent listings/users.
+- `/admin/listings` — manage listings, filters, and suppression workflow.
+- `/admin/users` — invite, suspend, and manage internal users.
+- `/admin/settings/analytics` — configure Google Analytics credentials.
 
 ## Local Development
 
@@ -71,6 +86,14 @@ The project defaults to the database queue driver; queue tables are already gene
 ```bash
 php artisan queue:work
 ```
+
+## Common Artisan Commands
+
+| Task | Command |
+| --- | --- |
+| Apply pending migrations | `php artisan migrate --graceful` |
+| Reseed demo data without dropping tables | `php artisan db:seed --class=Database\Seeders\DatabaseSeeder` |
+| Reset schema and reseed listings | `php artisan migrate:fresh --seed` |
 
 ## Build & Quality Checks
 

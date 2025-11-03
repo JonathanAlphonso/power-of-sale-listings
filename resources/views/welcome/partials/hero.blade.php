@@ -10,15 +10,15 @@
             <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_left,_rgba(217,4,41,0.15),_transparent_55%)] sm:block"></div>
             <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.14),_transparent_60%)] sm:block"></div>
             <div class="relative">
-                <div class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-600 shadow-sm">
-                    <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-                    <span>M0 · Ontario launch groundwork underway</span>
+                <div class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 shadow-sm">
+                    <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span>M1 · Admin workspace hardening in progress</span>
                 </div>
                 <h1 class="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
                     Elevate Ontario power of sale discovery with Canadian precision
                 </h1>
                 <p class="mt-6 text-lg leading-relaxed text-slate-600 sm:text-xl">
-                    We are crafting a Canada-first listings intelligence platform that blends lender disclosures, MLS feeds, and legal notices into a clean Ontario-focused dataset for investors, brokers, and compliance teams.
+                    With the foundation milestone complete, we are now polishing the admin experience while crafting a Canada-first listings intelligence platform that blends lender disclosures, MLS feeds, and legal notices into a clean Ontario-focused dataset for investors, brokers, and compliance teams.
                 </p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
                     <span class="rounded-full border border-red-200 bg-white px-3 py-1 text-red-500">Ontario MLS coverage</span>

@@ -26,7 +26,7 @@
 -   [x] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.
 -   [ ] Update navigation to expose admin dashboard routes only for authenticated users.
 -   [x] Integrate Google Analytics configuration into admin settings and surface key metrics within the dashboard.
--   [ ] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
+-   [x] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
 
 ## M2 – Data Intake & Normalisation
 

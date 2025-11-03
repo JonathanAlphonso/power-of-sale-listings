@@ -13,11 +13,11 @@
                 </div>
                 <h3 class="mt-4 text-2xl font-semibold text-slate-900">Baseline ingestion + admin shell</h3>
                 <ul class="mt-6 space-y-3 text-sm text-slate-600">
-                    <li>• Laravel starter baseline validated locally and in CI.</li>
-                    <li>• Listings schema, seed data, and factory coverage.</li>
-                    <li>• Volt admin shell with Flux navigation and access control.</li>
+                    <li>• Tooling prerequisites verified for local machines and CI.</li>
+                    <li>• Listings schema, factories, and seed data ship Ontario demos.</li>
+                    <li>• Volt + Flux layout established with authentication guardrails.</li>
                 </ul>
-                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-500">In progress · Current sprint</span>
+                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">Complete · Foundation ready</span>
             </x-ui.card>
             <x-ui.card variant="blue">
                 <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-blue-500">
@@ -26,11 +26,11 @@
                 </div>
                 <h3 class="mt-4 text-2xl font-semibold text-slate-900">Interactive admin for analysts</h3>
                 <ul class="mt-6 space-y-3 text-sm text-slate-600">
-                    <li>• Filtering, sorting, and previewing canonical listings.</li>
-                    <li>• Audit log visibility and saved search management.</li>
-                    <li>• Role-based access policies hardened with Fortify.</li>
+                    <li>• Admin listing management, suppression, and audit trails delivered.</li>
+                    <li>• User lifecycle, analytics settings, and policy coverage verified.</li>
+                    <li>• Final navigation updates exposing admin-only routes underway.</li>
                 </ul>
-                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-500">Planned · Q2 kickoff</span>
+                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-500">In progress · Finalizing navigation guard</span>
             </x-ui.card>
             <x-ui.card variant="emerald">
                 <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-emerald-500">
@@ -39,11 +39,11 @@
                 </div>
                 <h3 class="mt-4 text-2xl font-semibold text-slate-900">Normalization + nightly integrity</h3>
                 <ul class="mt-6 space-y-3 text-sm text-slate-600">
-                    <li>• CSV import workflows with validation and queuing.</li>
-                    <li>• Normalized payload storage with status history.</li>
-                    <li>• Data health jobs with alerts and triage guidance.</li>
+                    <li>• PropTx API integration with credential and scheduling controls.</li>
+                    <li>• Payload normalization, snapshot storage, and change logging.</li>
+                    <li>• Nightly QA, retry logic, and duplicate detection with alerts.</li>
                 </ul>
-                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">Scoped · Dependency on M1</span>
+                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-500">Queued · Begins after admin wrap-up</span>
             </x-ui.card>
             <x-ui.card variant="slate">
                 <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
@@ -52,11 +52,11 @@
                 </div>
                 <h3 class="mt-4 text-2xl font-semibold text-slate-900">Public portal + notifications</h3>
                 <ul class="mt-6 space-y-3 text-sm text-slate-600">
-                    <li>• Public search, detail view, and compliance pages.</li>
-                    <li>• Saved searches with email digests and rate limiting.</li>
-                    <li>• Launch runbooks, monitoring, and response playbooks.</li>
+                    <li>• Public search, detail pages, and compliance content.</li>
+                    <li>• Saved searches with notification preferences and digests.</li>
+                    <li>• Contact workflows, rate limiting, and launch communications.</li>
                 </ul>
-                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Launch-ready · Pending cutover</span>
+                <span class="mt-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Planned · Post-ingestion rollout</span>
             </x-ui.card>
         </div>
     </div>

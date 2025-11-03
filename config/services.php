@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'idx' => [
+        'base_uri' => env('IDX_BASE_URI'),
+        'token' => env('IDX_TOKEN'),
+        'run_live_tests' => env('RUN_LIVE_IDX_TESTS', false),
+    ],
+
 ];

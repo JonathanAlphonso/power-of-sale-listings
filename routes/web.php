@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\AnalyticsSetting;
 use App\Models\Listing;
 use App\Models\User;
+use App\Services\GoogleAnalytics\AnalyticsSummaryService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -98,7 +100,7 @@ Route::get('listings/{listing}', function (Listing $listing) {
     ]);
 })->name('listings.show');
 
-Route::get('dashboard', function () {
+Route::get('dashboard', function (AnalyticsSummaryService $analyticsSummaryService) {
     Gate::authorize('view-admin-dashboard');
 
     $totalListings = Listing::query()->count();
@@ -116,6 +118,8 @@ Route::get('dashboard', function () {
         ->latest('created_at')
         ->limit(5)
         ->get(['id', 'name', 'email', 'created_at']);
+    $analyticsSetting = AnalyticsSetting::current();
+    $analyticsSummary = $analyticsSummaryService->summary($analyticsSetting);
 
     return view('dashboard', [
         'totalListings' => $totalListings,
@@ -124,6 +128,8 @@ Route::get('dashboard', function () {
         'recentListings' => $recentListings,
         'totalUsers' => $totalUsers,
         'recentUsers' => $recentUsers,
+        'analyticsSetting' => $analyticsSetting,
+        'analyticsSummary' => $analyticsSummary,
     ]);
 })
     ->middleware(['auth', 'verified', 'admin'])
@@ -141,6 +147,9 @@ Route::middleware(['auth'])->group(function () {
 
         Volt::route('admin/users', 'admin.users.index')
             ->name('admin.users.index');
+
+        Volt::route('admin/settings/analytics', 'admin.settings.analytics')
+            ->name('admin.settings.analytics');
     });
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');

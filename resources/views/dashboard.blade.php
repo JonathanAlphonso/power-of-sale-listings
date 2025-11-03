@@ -1,6 +1,30 @@
 <x-layouts.site :title="__('Dashboard')">
     @php
         $formatCount = static fn (int|float|null $value): string => number_format((int) ($value ?? 0));
+
+        /** @var array<string, string> $metricLabels */
+        $metricLabels = [
+            'totalUsers' => __('Total users'),
+            'newUsers' => __('New users'),
+            'sessions' => __('Sessions'),
+            'engagementRate' => __('Engagement rate'),
+        ];
+
+        $formatMetric = static function (string $metric, mixed $value): string {
+            if ($value === null) {
+                return '—';
+            }
+
+            if ($metric === 'engagementRate') {
+                return number_format((float) $value * 100, 1).'%';
+            }
+
+            if (is_numeric($value)) {
+                return number_format((int) $value);
+            }
+
+            return (string) $value;
+        };
     @endphp
 
     <section class="mx-auto max-w-6xl px-6 py-12 lg:px-8">
@@ -72,6 +96,54 @@
                         {{ __('Mean asking price across all listings.') }}
                     </p>
                 </div>
+            </div>
+
+            <div class="rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-zinc-900/60">
+                <div class="flex flex-col gap-4 border-b border-neutral-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-700">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {{ __('Google Analytics') }}
+                        </h2>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ __('Key engagement metrics for the connected GA4 property.') }}
+                        </p>
+                    </div>
+
+                    @if (! empty($analyticsSummary->rangeLabel))
+                        <flux:badge color="sky">
+                            {{ $analyticsSummary->rangeLabel }}
+                        </flux:badge>
+                    @endif
+                </div>
+
+                @if ($analyticsSummary->configured && ! empty($analyticsSummary->metrics))
+                    <div class="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4">
+                        @foreach ($analyticsSummary->metrics as $metric => $value)
+                            <div class="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-zinc-900/70">
+                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    {{ $metricLabels[$metric] ?? \Illuminate\Support\Str::title(str_replace('_', ' ', $metric)) }}
+                                </p>
+                                <p class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">
+                                    {{ $formatMetric($metric, $value) }}
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="p-6">
+                        <flux:callout class="rounded-xl">
+                            <flux:callout.heading>{{ __('Analytics data unavailable') }}</flux:callout.heading>
+                            <flux:callout.text>
+                                {{ $analyticsSummary->message ?? __('Connect Google Analytics to begin tracking engagement for the dashboard.') }}
+                            </flux:callout.text>
+                            <div class="mt-4">
+                                <flux:button :href="route('admin.settings.analytics')" variant="outline" icon="cog-6-tooth" wire:navigate>
+                                    {{ __('Manage analytics settings') }}
+                                </flux:button>
+                            </div>
+                        </flux:callout>
+                    </div>
+                @endif
             </div>
 
             <div class="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

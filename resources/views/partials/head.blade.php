@@ -12,3 +12,22 @@
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
 @fluxAppearance
+
+@php
+    $clientAnalyticsMeasurementId = once(function (): ?string {
+        $setting = \App\Models\AnalyticsSetting::clientSetting();
+
+        return $setting?->clientMeasurementId();
+    });
+@endphp
+
+@if ($clientAnalyticsMeasurementId)
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ $clientAnalyticsMeasurementId }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ $clientAnalyticsMeasurementId }}');
+    </script>
+@endif

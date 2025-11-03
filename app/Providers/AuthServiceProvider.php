@@ -35,5 +35,9 @@ class AuthServiceProvider extends ServiceProvider
         Gate::define('view-admin-dashboard', function (User $user): bool {
             return Gate::forUser($user)->allows('access-admin-area');
         });
+
+        Gate::define('manage-analytics-settings', function (User $user): bool {
+            return Gate::forUser($user)->allows('access-admin-area');
+        });
     }
 }

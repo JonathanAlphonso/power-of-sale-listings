@@ -38,6 +38,14 @@
                         >
                             {{ __('Users') }}
                         </flux:navlist.item>
+                        <flux:navlist.item
+                            icon="chart-bar"
+                            :href="route('admin.settings.analytics')"
+                            :current="request()->routeIs('admin.settings.analytics')"
+                            wire:navigate
+                        >
+                            {{ __('Analytics') }}
+                        </flux:navlist.item>
                     </flux:navlist.group>
                 </flux:navlist>
             @endif

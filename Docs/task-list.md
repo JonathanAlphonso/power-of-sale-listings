@@ -14,19 +14,19 @@
 
 ## M1 – Data Model & Admin Shell
 
-- [x] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
-- [x] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
-- [x] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
-- [x] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
-- [x] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
-- [x] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
-- [x] Add admin listing suppression workflow (soft-unpublish with audit trail & expiry) while reserving hard deletes for automated stale/orphan cleanup.
-- [ ] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.
-- [x] Implement authorization policies and gates leveraging the new role model; ensure policy tests cover allow/deny paths.
-- [ ] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.
-- [ ] Update navigation to expose admin dashboard routes only for authenticated users.
-- [ ] Integrate Google Analytics configuration into admin settings and surface key metrics within the dashboard.
-- [ ] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
+-   [x] Design database schema for listings, sources, municipalities, status history, media assets, saved searches, and audit logs; create migrations via `artisan make:migration`.
+-   [x] Define Eloquent models with relationships, casts, and attribute accessors; create factories and seeders for representative data sets.
+-   [x] Implement database seeders to populate dummy listings, municipalities, and source organizations for development.
+-   [x] Introduce admin and subscriber user roles with Volt-driven user management for admins to view, invite, suspend, and update other users.
+-   [x] Build Volt admin pages leveraging Flux tables for listing browse, filter, paginate, and quick detail preview states.
+-   [x] Add listing detail Volt view with Flux panels showing metadata, photos, and change history.
+-   [x] Add admin listing suppression workflow (soft-unpublish with audit trail & expiry) while reserving hard deletes for automated stale/orphan cleanup.
+-   [x] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.
+-   [x] Implement authorization policies and gates leveraging the new role model; ensure policy tests cover allow/deny paths.
+-   [x] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.
+-   [ ] Update navigation to expose admin dashboard routes only for authenticated users.
+-   [ ] Integrate Google Analytics configuration into admin settings and surface key metrics within the dashboard.
+-   [ ] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
 
 ## M2 – Data Intake & Normalisation
 

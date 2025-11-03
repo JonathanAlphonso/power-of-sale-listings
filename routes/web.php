@@ -4,14 +4,16 @@ use App\Models\AnalyticsSetting;
 use App\Models\Listing;
 use App\Models\User;
 use App\Services\GoogleAnalytics\AnalyticsSummaryService;
+use App\Services\Idx\IdxClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Features;
 use Livewire\Volt\Volt;
 
-Route::get('/', function () {
+Route::get('/', function (IdxClient $idxClient) {
     $connected = false;
     $databaseName = null;
     $tableSample = [];
@@ -19,6 +21,8 @@ Route::get('/', function () {
     $errorMessage = null;
     $sampleListings = collect();
     $listingsTableExists = false;
+    $idxListings = collect();
+    $idxFeedEnabled = $idxClient->isEnabled();
 
     try {
         $connection = DB::connection();
@@ -60,6 +64,16 @@ Route::get('/', function () {
         $errorMessage = $exception->getMessage();
     }
 
+    if ($idxFeedEnabled) {
+        try {
+            $idxListings = collect($idxClient->fetchListings(4));
+        } catch (\Throwable $exception) {
+            Log::warning('IDX listings failed to load for welcome page.', [
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     return view('welcome', [
         'dbConnected' => $connected,
         'databaseName' => $databaseName,
@@ -68,6 +82,8 @@ Route::get('/', function () {
         'dbErrorMessage' => $errorMessage,
         'sampleListings' => $sampleListings,
         'listingsTableExists' => $listingsTableExists,
+        'idxListings' => $idxListings,
+        'idxFeedEnabled' => $idxFeedEnabled,
     ]);
 })->name('home');
 

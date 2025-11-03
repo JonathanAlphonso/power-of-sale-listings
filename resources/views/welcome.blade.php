@@ -6,6 +6,7 @@
         @include('welcome.partials.pipeline')
         @include('welcome.partials.database')
         @include('welcome.partials.listings-demo')
+        @include('welcome.partials.idx-feed')
         @include('welcome.partials.tech')
         @include('welcome.partials.cta')
     </main>

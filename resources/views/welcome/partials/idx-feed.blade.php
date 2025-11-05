@@ -67,6 +67,17 @@
                             </flux:badge>
                         </div>
 
+                        @if (is_string($listing['image_url'] ?? null) && $listing['image_url'] !== '')
+                            <div class="mt-6">
+                                <img
+                                    src="{{ $listing['image_url'] }}"
+                                    alt="{{ $listing['address'] ?? __('Listing photo') }}"
+                                    class="aspect-[4/3] w-full rounded-2xl border border-slate-200 object-cover"
+                                    loading="lazy"
+                                />
+                            </div>
+                        @endif
+
                         <div class="mt-6 space-y-2 text-sm text-slate-600">
                             <h3 class="text-lg font-semibold text-slate-900">
                                 {{ $listing['address'] ?? __('Address unavailable') }}

@@ -126,3 +126,40 @@ test('admins can suppress and unsuppress listings with audit logging', function 
 
     expect(AuditLog::query()->where('action', 'listing.unsuppressed')->count())->toBe(1);
 });
+
+test('admins can purge all listings', function (): void {
+    $admin = User::factory()->admin()->create();
+
+    // Seed multiple listings to ensure bulk deletion
+    $listings = Listing::factory()->count(5)->create([
+        'display_status' => 'Available',
+        'modified_at' => now(),
+    ]);
+
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    Volt::test('admin.listings.index')
+        ->call('confirmPurge')
+        ->assertSet('confirmingPurge', true)
+        ->call('purgeAllListings')
+        ->assertSet('confirmingPurge', false)
+        ->assertDispatched('listings-purged');
+
+    expect(Listing::query()->count())->toBe(0);
+});
+
+test('admins can generate fake listings for testing', function (): void {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    expect(Listing::query()->count())->toBe(0);
+
+    Volt::test('admin.listings.index')
+        ->call('seedFakeListings', 25)
+        ->assertDispatched('listings-seeded');
+
+    expect(Listing::query()->count())->toBe(25);
+});

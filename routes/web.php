@@ -158,6 +158,9 @@ Route::middleware(['auth'])->group(function () {
         Volt::route('admin/listings', 'admin.listings.index')
             ->name('admin.listings.index');
 
+        Volt::route('admin/feeds', 'admin.feeds.index')
+            ->name('admin.feeds.index');
+
         Volt::route('admin/listings/{listing}', 'admin.listings.show')
             ->name('admin.listings.show');
 

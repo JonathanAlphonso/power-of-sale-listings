@@ -40,6 +40,9 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public bool $suppressionAvailable = false;
 
+    public bool $confirmingPurge = false;
+    public bool $seeding = false;
+
     /** @var array{reason: string, notes: string, expires_at: string} */
     public array $suppressionForm = [
         'reason' => '',
@@ -89,6 +92,42 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $this->perPage = (string) $this->resolvePerPage((int) $this->perPage);
         $this->resetPage();
+    }
+
+    public function confirmPurge(): void
+    {
+        Gate::authorize('purge', Listing::class);
+        $this->confirmingPurge = true;
+    }
+
+    public function purgeAllListings(): void
+    {
+        Gate::authorize('purge', Listing::class);
+
+        // Delete in chunks to respect FKs and avoid long-running queries.
+        Listing::query()
+            ->select('id')
+            ->orderBy('id')
+            ->chunkById(500, function (\Illuminate\Support\Collection $chunk): void {
+                Listing::query()->whereIn('id', $chunk->pluck('id'))->delete();
+            });
+
+        $this->confirmingPurge = false;
+        $this->resetFiltersState();
+        $this->dispatch('listings-purged');
+        $this->dispatch('$refresh');
+    }
+
+    public function seedFakeListings(int $count = 50): void
+    {
+        Gate::authorize('seed', Listing::class);
+
+        $count = max(1, min($count, 500));
+
+        \App\Models\Listing::factory()->count($count)->create();
+
+        $this->dispatch('listings-seeded', count: $count);
+        $this->dispatch('$refresh');
     }
 
     public function selectListing(int $listingId): void
@@ -476,8 +515,92 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     @include('livewire.admin.listings.partials.filters')
 
+
     <div class="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.9fr)_minmax(0,1fr)]">
         @include('livewire.admin.listings.partials.listings-table', ['selectedListing' => $selectedListing])
         @include('livewire.admin.listings.partials.preview', ['selectedListing' => $selectedListing])
     </div>
+
+    <!-- Accordion: Danger zone (purge all listings) -->
+    <div x-data="{ open: false }" class="mt-10">
+        <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900/60">
+            <button type="button" class="flex w-full items-center justify-between px-4 py-3" x-on:click="open = ! open">
+                <span class="text-sm font-semibold text-red-800 dark:text-red-200">{{ __('Danger zone') }}</span>
+                <span class="text-zinc-500" x-text="open ? '–' : '+'"></span>
+            </button>
+
+            <div x-show="open" x-collapse class="border-t border-zinc-200 px-4 py-4 dark:border-zinc-700">
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <flux:text class="text-xs text-zinc-600 dark:text-zinc-400">
+                            {{ __('Generate fake listings for testing. These records are created with factories and can be safely purged.') }}
+                        </flux:text>
+                        <div class="flex items-center gap-2">
+                            <flux:button
+                                variant="primary"
+                                icon="plus"
+                                wire:click="seedFakeListings(50)"
+                                wire:loading.attr="disabled"
+                                wire:target="seedFakeListings"
+                            >
+                                <span wire:loading.remove wire:target="seedFakeListings">
+                                    {{ __('Generate 50 listings') }}
+                                </span>
+                                <span wire:loading wire:target="seedFakeListings" class="inline-flex items-center gap-2">
+                                    <flux:icon name="arrow-path" class="animate-spin" />
+                                    {{ __('Generating…') }}
+                                </span>
+                            </flux:button>
+                            <x-action-message on="listings-seeded" class="text-sm text-emerald-700 dark:text-emerald-300">
+                                {{ __('Fake listings generated.') }}
+                            </x-action-message>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <flux:text class="text-xs text-red-700/90 dark:text-red-300/90">
+                            {{ __('Permanently remove all listings and related media and status history. This action cannot be undone.') }}
+                        </flux:text>
+                        <div class="flex items-center gap-2">
+                            <flux:button variant="danger" icon="trash" wire:click="confirmPurge" wire:loading.attr="disabled">
+                                {{ __('Purge all listings') }}
+                            </flux:button>
+                            <x-action-message on="listings-purged" class="text-sm text-red-700 dark:text-red-300">
+                                {{ __('Listings purged.') }}
+                            </x-action-message>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <flux:modal wire:model="confirmingPurge" class="max-w-md">
+        <div class="space-y-4">
+            <flux:heading size="lg">{{ __('Purge all listings') }}</flux:heading>
+            <flux:text>
+                {{ __('This will permanently delete all listings and their related media and status history. This action cannot be undone.') }}
+            </flux:text>
+
+        <div class="flex items-center justify-end gap-2">
+            <flux:button variant="outline" wire:click="$set('confirmingPurge', false)">
+                {{ __('Cancel') }}
+            </flux:button>
+
+                            <flux:button
+                                variant="danger"
+                                wire:click="purgeAllListings"
+                                wire:loading.attr="disabled"
+                                wire:target="purgeAllListings"
+                            >
+                                <span wire:loading.remove wire:target="purgeAllListings">
+                                    {{ __('Purge listings') }}
+                                </span>
+                                <span wire:loading wire:target="purgeAllListings" class="inline-flex items-center gap-2">
+                                    <flux:icon name="arrow-path" class="animate-spin" />
+                                    {{ __('Purging…') }}
+                                </span>
+                            </flux:button>
+        </div>
+    </div>
+    </flux:modal>
 </section>

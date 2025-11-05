@@ -34,4 +34,14 @@ class ListingPolicy
     {
         return $this->allowsAdmin($user);
     }
+
+    public function purge(User $user): bool
+    {
+        return $this->allowsAdmin($user);
+    }
+
+    public function seed(User $user): bool
+    {
+        return $this->allowsAdmin($user);
+    }
 }

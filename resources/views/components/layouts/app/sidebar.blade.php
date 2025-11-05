@@ -31,6 +31,14 @@
                             {{ __('Listings') }}
                         </flux:navlist.item>
                         <flux:navlist.item
+                            icon="layout-grid"
+                            :href="route('admin.feeds.index')"
+                            :current="request()->routeIs('admin.feeds.index')"
+                            wire:navigate
+                        >
+                            {{ __('Data Feeds') }}
+                        </flux:navlist.item>
+                        <flux:navlist.item
                             icon="users"
                             :href="route('admin.users.index')"
                             :current="request()->routeIs('admin.users.index')"

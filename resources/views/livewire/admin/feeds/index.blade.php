@@ -139,6 +139,51 @@ new #[Layout('components.layouts.app')] class extends Component {
         Cache::forget('idx.pos.listings.4');
         $this->message = __('Homepage feed cache cleared.');
     }
+
+    #[Computed]
+    public function httpMetrics(): array
+    {
+        $get = fn (string $scope, string $key) => (int) (Cache::get("idx.metrics.{$scope}.{$key}") ?? 0);
+
+        $property = [
+            'total' => $get('property', 'total'),
+            'success' => $get('property', 'success'),
+            'r429' => $get('property', '429'),
+            'r5xx' => $get('property', '5xx'),
+            'other' => $get('property', 'other'),
+        ];
+        $media = [
+            'total' => $get('media', 'total'),
+            'success' => $get('media', 'success'),
+            'r429' => $get('media', '429'),
+            'r5xx' => $get('media', '5xx'),
+            'other' => $get('media', 'other'),
+        ];
+
+        $rate = fn (array $m) => $m['total'] > 0 ? round(($m['success'] / max(1, $m['total'])) * 100, 1) : 0.0;
+
+        return [
+            'window_started' => Cache::get('idx.metrics.window_started'),
+            'last_status' => Cache::get('idx.metrics.last_status'),
+            'last_error' => Cache::get('idx.metrics.last_error'),
+            'last_at' => Cache::get('idx.metrics.last_at'),
+            'property' => $property + ['success_rate' => $rate($property)],
+            'media' => $media + ['success_rate' => $rate($media)],
+        ];
+    }
+
+    public function clearHttpMetrics(): void
+    {
+        foreach (['property', 'media'] as $scope) {
+            foreach (['total','success','429','5xx','other'] as $key) {
+                Cache::forget("idx.metrics.{$scope}.{$key}");
+            }
+        }
+        foreach (['window_started','last_status','last_error','last_at'] as $key) {
+            Cache::forget("idx.metrics.{$key}");
+        }
+        $this->message = __('HTTP metrics cleared.');
+    }
 }; ?>
 
 <section class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -262,6 +307,49 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    <div class="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+        <flux:heading size="sm" class="mb-3">{{ __('HTTP Metrics (24h)') }}</flux:heading>
+        <div class="grid gap-6 md:grid-cols-2">
+            <div>
+                <flux:heading size="xs" class="mb-2 text-zinc-600 dark:text-zinc-400">{{ __('Property requests') }}</flux:heading>
+                <dl class="grid gap-2 text-sm">
+                    <div class="flex items-center justify-between"><dt>{{ __('Total') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['property']['total']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('Success') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['property']['success']) }} ({{ $this->httpMetrics['property']['success_rate'] }}%)</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('429') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['property']['r429']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('5xx') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['property']['r5xx']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('Other') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['property']['other']) }}</dd></div>
+                </dl>
+            </div>
+            <div>
+                <flux:heading size="xs" class="mb-2 text-zinc-600 dark:text-zinc-400">{{ __('Media requests') }}</flux:heading>
+                <dl class="grid gap-2 text-sm">
+                    <div class="flex items-center justify-between"><dt>{{ __('Total') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['media']['total']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('Success') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['media']['success']) }} ({{ $this->httpMetrics['media']['success_rate'] }}%)</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('429') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['media']['r429']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('5xx') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['media']['r5xx']) }}</dd></div>
+                    <div class="flex items-center justify-between"><dt>{{ __('Other') }}</dt><dd class="font-semibold">{{ number_format($this->httpMetrics['media']['other']) }}</dd></div>
+                </dl>
+            </div>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+            @if($this->httpMetrics['last_status'])
+                <span>{{ __('Last status: :s', ['s' => $this->httpMetrics['last_status']]) }}</span>
+            @endif
+            @if($this->httpMetrics['last_at'])
+                <span>•</span>
+                <span>{{ __('Last at: :t', ['t' => $this->httpMetrics['last_at']]) }}</span>
+            @endif
+            @if($this->httpMetrics['last_error'])
+                <span class="text-amber-700 dark:text-amber-300">• {{ __('Last error: :e', ['e' => $this->httpMetrics['last_error']]) }}</span>
+            @endif
+        </div>
+        <div class="mt-4 flex gap-2">
+            <flux:button variant="outline" icon="trash" wire:click="clearHttpMetrics" wire:loading.attr="disabled">
+                {{ __('Clear HTTP metrics') }}
+            </flux:button>
+        </div>
+    </div>
+
     <div class="mt-6 grid gap-6 md:grid-cols-2">
         <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
             <flux:heading size="sm" class="mb-3">{{ __('Status Breakdown') }}</flux:heading>
@@ -303,6 +391,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                 {{ __('Run “Test connection” to load a small preview of Power of Sale listings from IDX.') }}
             </flux:callout>
         @else
+            <div class="mb-3 flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+                <span>{{ __('Items: :n', ['n' => count($preview)]) }}</span>
+                <span>•</span>
+                <span>{{ __('With images: :n', ['n' => $previewImageCount]) }}</span>
+                @if($requestMs)
+                    <span>•</span>
+                    <span>{{ __('Request time: :ms ms', ['ms' => $requestMs]) }}</span>
+                @endif
+            </div>
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 @foreach ($preview as $item)
                     <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">

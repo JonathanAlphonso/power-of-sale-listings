@@ -167,6 +167,13 @@ class IdxClient
                 '$orderby' => 'ModificationTimestamp,ListingKey',
             ]);
 
+            // Metrics: record Property request status (best-effort)
+            try {
+                $this->recordHttpMetrics('property', $response->status());
+            } catch (\Throwable) {
+                // ignore
+            }
+
             if ($response->failed()) {
                 return [];
             }
@@ -212,7 +219,13 @@ class IdxClient
             }
 
             return $transformed;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            try {
+                $this->recordHttpMetrics('property', null, $e->getMessage());
+            } catch (\Throwable) {
+                // ignore
+            }
+
             return [];
         }
     }
@@ -273,6 +286,12 @@ class IdxClient
                 '$orderby' => 'ModificationTimestamp,ListingKey',
             ]);
 
+            try {
+                $this->recordHttpMetrics('property', $response->status());
+            } catch (\Throwable) {
+                // ignore
+            }
+
             if ($response->failed()) {
                 return [];
             }
@@ -305,7 +324,12 @@ class IdxClient
             }
 
             return $transformed;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            try {
+                $this->recordHttpMetrics('property', null, $e->getMessage());
+            } catch (\Throwable) {
+            }
+
             return [];
         }
     }
@@ -346,6 +370,12 @@ class IdxClient
                         '$filter' => "ResourceName eq 'Property' and ResourceRecordKey eq '{$escapedKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active'",
                         '$select' => $select,
                     ]);
+
+                try {
+                    $this->recordHttpMetrics('media', $response->status());
+                } catch (\Throwable) {
+                    // ignore
+                }
 
                 if ($response->failed()) {
                     continue;
@@ -455,5 +485,34 @@ class IdxClient
         }
 
         return $address;
+    }
+
+    private function recordHttpMetrics(string $scope, ?int $status, ?string $error = null): void
+    {
+        $prefix = sprintf('idx.metrics.%s.', $scope);
+
+        // Sliding window 24h
+        Cache::put('idx.metrics.window_started', Cache::get('idx.metrics.window_started', now()->toIso8601String()), now()->addDay());
+
+        Cache::put($prefix.'total', (int) Cache::get($prefix.'total', 0) + 1, now()->addDay());
+
+        if ($status !== null) {
+            Cache::put('idx.metrics.last_status', $status, now()->addDay());
+            Cache::put('idx.metrics.last_at', now()->toIso8601String(), now()->addDay());
+
+            if ($status >= 200 && $status < 300) {
+                Cache::put($prefix.'success', (int) Cache::get($prefix.'success', 0) + 1, now()->addDay());
+            } elseif ($status === 429) {
+                Cache::put($prefix.'429', (int) Cache::get($prefix.'429', 0) + 1, now()->addDay());
+            } elseif ($status >= 500) {
+                Cache::put($prefix.'5xx', (int) Cache::get($prefix.'5xx', 0) + 1, now()->addDay());
+            } else {
+                Cache::put($prefix.'other', (int) Cache::get($prefix.'other', 0) + 1, now()->addDay());
+            }
+        } else {
+            Cache::put('idx.metrics.last_error', Str::limit((string) $error, 180), now()->addDay());
+            Cache::put('idx.metrics.last_at', now()->toIso8601String(), now()->addDay());
+            Cache::put($prefix.'other', (int) Cache::get($prefix.'other', 0) + 1, now()->addDay());
+        }
     }
 }

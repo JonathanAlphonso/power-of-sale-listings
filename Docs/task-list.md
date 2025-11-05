@@ -30,7 +30,7 @@
 
 ## M2 – Data Intake & Normalisation
 
--   [ ] PropTx API and auth flow
+-   [x] PropTx API and auth flow
 -   [ ] Ingest new listings
 -   [ ] Ingest and update existing listings
 -   [ ] Normalise PropTx payloads into the canonical listing structure while persisting raw payload snapshots for auditing.

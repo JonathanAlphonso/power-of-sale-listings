@@ -528,4 +528,13 @@ it('has emails', function (string $email) {
 
 - Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
 - Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test` with a specific filename or filter.
+=== project notes ===
+
+## IDX / PropTx Credentials
+
+- IDX_* environment variables map directly to PropTx RESO OData API credentials.
+- `IDX_TOKEN` is the PropTx bearer token; `IDX_BASE_URI` is the PropTx base URL.
+- Tests can hit the live PropTx API when `RUN_LIVE_IDX_TESTS=1`; default to 0 locally/CI.
+- Do not add separate `PROPTX_*` keys; keep this mapping consistent across config, services, and tests.
+
 </laravel-boost-guidelines>

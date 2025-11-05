@@ -35,6 +35,10 @@ return [
         ],
     ],
 
+    // IDX / PropTx credentials
+    // Note: Our IDX integration uses the PropTx RESO OData API. The `IDX_*`
+    // env vars map directly to PropTx values (bearer token + base URL).
+    // If PropTx rotates credentials, update these env vars.
     'idx' => [
         'base_uri' => env('IDX_BASE_URI'),
         'token' => env('IDX_TOKEN'),

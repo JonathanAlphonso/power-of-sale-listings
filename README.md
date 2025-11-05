@@ -121,6 +121,7 @@ Quick fixes for the most common issues. For a deeper playbook covering deploymen
 - `Docs/task-list.md` — milestone checklist for foundation, data model, ingestion, and public portal work.
 - `Docs/build-plan.md` — detailed milestone plan, technology choices, and cross-cutting concerns.
 - `docs/runbook.md` — complete setup workflow, deployment checklist, and troubleshooting matrix.
+- `Docs/proptx-api-mapping.md` — PropTx/IDX fields requested, `$select` guidance, and mapping to the `listings` schema.
 
 ## Contributing
 

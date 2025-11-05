@@ -105,6 +105,8 @@ class IdxClient
     {
         try {
             $response = $this->connection()->get('Property', [
+                // Only return live/on-market listings
+                '$filter' => "StandardStatus eq 'Active'",
                 '$top' => $limit,
                 '$orderby' => 'ModificationTimestamp desc',
             ]);
@@ -119,7 +121,22 @@ class IdxClient
                 return [];
             }
 
-            $limited = array_slice($payload, 0, $limit);
+            // Ensure only listings with StandardStatus=Active are shown,
+            // even if an upstream API ignores the filter.
+            $filtered = array_values(array_filter(
+                $payload,
+                static function ($item): bool {
+                    if (! is_array($item)) {
+                        return false;
+                    }
+
+                    $status = Arr::get($item, 'StandardStatus');
+
+                    return is_string($status) && strtolower($status) === 'active';
+                }
+            ));
+
+            $limited = array_slice($filtered, 0, $limit);
 
             $transformed = array_values(array_map(
                 fn (array $listing): array => $this->transformListing($listing),
@@ -236,7 +253,8 @@ class IdxClient
             'state' => Arr::get($listing, 'StateOrProvince'),
             'postal_code' => Arr::get($listing, 'PostalCode'),
             'list_price' => Arr::get($listing, 'ListPrice'),
-            'status' => Arr::get($listing, 'StandardStatus') ?? Arr::get($listing, 'ContractStatus'),
+            // Prefer RESO StandardStatus to determine live vs off-market state
+            'status' => Arr::get($listing, 'StandardStatus'),
             'property_type' => Arr::get($listing, 'PropertyType'),
             'property_sub_type' => Arr::get($listing, 'PropertySubType'),
             'list_office_name' => Arr::get($listing, 'ListOfficeName'),

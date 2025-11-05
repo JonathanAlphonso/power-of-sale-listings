@@ -25,9 +25,19 @@ This document explains which PropTx (RESO OData) fields we request, how we query
 
 - Media lookup (primary image by ListingKey):
   - Path: `Media`
+  - Select: `MediaURL,MediaType,ResourceName,ResourceRecordKey,MediaModificationTimestamp`
   - Filter: `ResourceName eq 'Property' and ResourceRecordKey eq '{ListingKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active'`
   - Order: `MediaModificationTimestamp desc`
   - Limit: `$top=1`
+
+## Homepage Demo Feed
+
+- The welcome page uses the Power of Sale query via `IdxClient::fetchPowerOfSaleListings(4)`.
+- Results are cached for 5 minutes under the key `idx.pos.listings.{limit}` to reduce upstream load and page latency.
+- Network timeouts:
+  - Property requests: 6 seconds per call
+  - Media requests: 3 seconds per listing
+  - Failures return an empty feed and show a helpful banner; the page itself remains responsive.
 
 ## OData Limitations (PropTx)
 

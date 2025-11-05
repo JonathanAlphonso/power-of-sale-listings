@@ -64,6 +64,35 @@ class IdxClient
         return $listings;
     }
 
+    /**
+     * Fetch recent Power of Sale listings (remark-based filter, deterministic order).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function fetchPowerOfSaleListings(int $limit = 4): array
+    {
+        if (! $this->isEnabled()) {
+            return [];
+        }
+
+        $cacheKey = sprintf('idx.pos.listings.%d', $limit);
+
+        if (Cache::has($cacheKey)) {
+            /** @var array<int, array<string, mixed>> $cached */
+            $cached = Cache::get($cacheKey, []);
+
+            return $cached;
+        }
+
+        $listings = $this->retrievePowerOfSaleListings($limit);
+
+        if ($listings !== []) {
+            Cache::put($cacheKey, $listings, now()->addMinutes(5));
+        }
+
+        return $listings;
+    }
+
     private function baseUri(): string
     {
         return (string) $this->config->get('services.idx.base_uri', '');
@@ -104,11 +133,38 @@ class IdxClient
     private function retrieveListings(int $limit): array
     {
         try {
-            $response = $this->connection()->get('Property', [
+            $select = implode(',', [
+                'ListingKey',
+                'ListingId',
+                'OriginatingSystemName',
+                'UnparsedAddress',
+                'StreetNumber',
+                'StreetDirPrefix',
+                'StreetName',
+                'StreetSuffix',
+                'UnitNumber',
+                'City',
+                'StateOrProvince',
+                'PostalCode',
+                'StandardStatus',
+                'ModificationTimestamp',
+                'ListPrice',
+                'OriginalListPrice',
+                'PropertyType',
+                'PropertySubType',
+                'ListOfficeName',
+                'PublicRemarks',
+                'VirtualTourURLBranded',
+                'VirtualTourURLUnbranded',
+            ]);
+
+            $response = $this->connection()->timeout(6)->get('Property', [
                 // Only return live/on-market listings
                 '$filter' => "StandardStatus eq 'Active'",
+                '$select' => $select,
                 '$top' => $limit,
-                '$orderby' => 'ModificationTimestamp desc',
+                // Prefer deterministic ordering for stable paging
+                '$orderby' => 'ModificationTimestamp,ListingKey',
             ]);
 
             if ($response->failed()) {
@@ -121,20 +177,16 @@ class IdxClient
                 return [];
             }
 
-            // Ensure only listings with StandardStatus=Active are shown,
-            // even if an upstream API ignores the filter.
-            $filtered = array_values(array_filter(
-                $payload,
-                static function ($item): bool {
-                    if (! is_array($item)) {
-                        return false;
-                    }
-
-                    $status = Arr::get($item, 'StandardStatus');
-
-                    return is_string($status) && strtolower($status) === 'active';
+            // Apply a defensive filter in case upstream ignores StandardStatus filter
+            $filtered = array_values(array_filter($payload, function ($item): bool {
+                if (! is_array($item)) {
+                    return false;
                 }
-            ));
+
+                $status = Arr::get($item, 'StandardStatus');
+
+                return is_string($status) && strtolower($status) === 'active';
+            }));
 
             $limited = array_slice($filtered, 0, $limit);
 
@@ -144,6 +196,99 @@ class IdxClient
             ));
 
             // Attach a primary image (if available) for display on the homepage.
+            $listingKeys = array_values(array_filter(array_map(
+                fn (array $item): ?string => is_string($item['listing_key'] ?? null) ? (string) $item['listing_key'] : null,
+                $transformed
+            )));
+
+            if ($listingKeys !== []) {
+                $imageMap = $this->retrievePrimaryImagesByListingKey($listingKeys);
+
+                foreach ($transformed as &$item) {
+                    $key = $item['listing_key'] ?? null;
+                    $item['image_url'] = is_string($key) && isset($imageMap[$key]) ? (string) $imageMap[$key] : null;
+                }
+                unset($item);
+            }
+
+            return $transformed;
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Power of Sale: query by remarks without forcing StandardStatus = Active.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function retrievePowerOfSaleListings(int $limit): array
+    {
+        try {
+            $select = implode(',', [
+                'ListingKey',
+                'ListingId',
+                'OriginatingSystemName',
+                'UnparsedAddress',
+                'StreetNumber',
+                'StreetDirPrefix',
+                'StreetName',
+                'StreetSuffix',
+                'UnitNumber',
+                'City',
+                'StateOrProvince',
+                'PostalCode',
+                'StandardStatus',
+                'MlsStatus',
+                'ContractStatus',
+                'ModificationTimestamp',
+                'ListPrice',
+                'OriginalListPrice',
+                'PropertyType',
+                'PropertySubType',
+                'ListOfficeName',
+                'PublicRemarks',
+                'VirtualTourURLBranded',
+                'VirtualTourURLUnbranded',
+                'TransactionType',
+            ]);
+
+            $filter = 'PublicRemarks ne null and ('
+                ."contains(PublicRemarks,'power of sale') or "
+                ."contains(PublicRemarks,'Power of Sale') or "
+                ."contains(PublicRemarks,'POWER OF SALE') or "
+                ."contains(PublicRemarks,'Power-of-Sale') or "
+                ."contains(PublicRemarks,'Power-of-sale') or "
+                ."contains(PublicRemarks,'P.O.S') or "
+                ."contains(PublicRemarks,' POS ') or "
+                ."contains(PublicRemarks,' POS,') or "
+                ."contains(PublicRemarks,' POS.') or "
+                ."contains(PublicRemarks,' POS-')"
+                .") and TransactionType eq 'For Sale'";
+
+            $response = $this->connection()->timeout(6)->get('Property', [
+                '$select' => $select,
+                '$filter' => $filter,
+                '$top' => $limit,
+                '$orderby' => 'ModificationTimestamp,ListingKey',
+            ]);
+
+            if ($response->failed()) {
+                return [];
+            }
+
+            $payload = $response->json('value');
+            if (! is_array($payload)) {
+                return [];
+            }
+
+            $limited = array_slice(array_values(array_filter($payload, 'is_array')), 0, $limit);
+
+            $transformed = array_values(array_map(
+                fn (array $listing): array => $this->transformListing($listing),
+                $limited
+            ));
+
             $listingKeys = array_values(array_filter(array_map(
                 fn (array $item): ?string => is_string($item['listing_key'] ?? null) ? (string) $item['listing_key'] : null,
                 $transformed
@@ -184,15 +329,23 @@ class IdxClient
 
             foreach ($listingKeys as $key) {
                 $escapedKey = str_replace("'", "''", $key);
-                $filter = rawurlencode(
-                    "ResourceName eq 'Property' and ResourceRecordKey eq '{$escapedKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active'"
-                );
 
-                $path = "Media?\$top=1&\$orderby=MediaModificationTimestamp desc&\$filter={$filter}";
+                $select = implode(',', [
+                    'MediaURL',
+                    'MediaType',
+                    'ResourceName',
+                    'ResourceRecordKey',
+                    'MediaModificationTimestamp',
+                ]);
 
                 $response = $this->connection()
-                    ->timeout(8)
-                    ->get($path);
+                    ->timeout(3)
+                    ->get('Media', [
+                        '$top' => 1,
+                        '$orderby' => 'MediaModificationTimestamp desc',
+                        '$filter' => "ResourceName eq 'Property' and ResourceRecordKey eq '{$escapedKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active'",
+                        '$select' => $select,
+                    ]);
 
                 if ($response->failed()) {
                     continue;
@@ -246,6 +399,10 @@ class IdxClient
     {
         $remarks = Arr::get($listing, 'PublicRemarks');
 
+        $standard = Arr::get($listing, 'StandardStatus');
+        $mlsStatus = Arr::get($listing, 'MlsStatus');
+        $contract = Arr::get($listing, 'ContractStatus');
+
         return [
             'listing_key' => Arr::get($listing, 'ListingKey'),
             'address' => Arr::get($listing, 'UnparsedAddress') ?? $this->buildAddress($listing),
@@ -253,8 +410,12 @@ class IdxClient
             'state' => Arr::get($listing, 'StateOrProvince'),
             'postal_code' => Arr::get($listing, 'PostalCode'),
             'list_price' => Arr::get($listing, 'ListPrice'),
-            // Prefer RESO StandardStatus to determine live vs off-market state
-            'status' => Arr::get($listing, 'StandardStatus'),
+            // Prefer RESO StandardStatus; fall back to board-specific labels when needed
+            'status' => is_string($standard) && $standard !== ''
+                ? $standard
+                : (is_string($mlsStatus) && $mlsStatus !== ''
+                    ? $mlsStatus
+                    : (is_string($contract) && $contract !== '' ? $contract : null)),
             'property_type' => Arr::get($listing, 'PropertyType'),
             'property_sub_type' => Arr::get($listing, 'PropertySubType'),
             'list_office_name' => Arr::get($listing, 'ListOfficeName'),

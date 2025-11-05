@@ -8,7 +8,7 @@ use Carbon\CarbonImmutable;
 it('displays idx listings when available', function (): void {
     $mock = \Mockery::mock(IdxClient::class);
     $mock->shouldReceive('isEnabled')->once()->andReturn(true);
-    $mock->shouldReceive('fetchListings')->once()->with(4)->andReturn([
+    $mock->shouldReceive('fetchPowerOfSaleListings')->once()->with(4)->andReturn([
         [
             'listing_key' => 'X123',
             'address' => '123 Main St, Toronto, ON M1M 1M1',
@@ -40,7 +40,7 @@ it('displays idx listings when available', function (): void {
 it('shows guidance when idx credentials are missing', function (): void {
     $mock = \Mockery::mock(IdxClient::class);
     $mock->shouldReceive('isEnabled')->once()->andReturn(false);
-    $mock->shouldReceive('fetchListings')->never();
+    $mock->shouldReceive('fetchPowerOfSaleListings')->never();
 
     $this->instance(IdxClient::class, $mock);
 

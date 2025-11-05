@@ -66,7 +66,7 @@ Route::get('/', function (IdxClient $idxClient) {
 
     if ($idxFeedEnabled) {
         try {
-            $idxListings = collect($idxClient->fetchListings(4));
+            $idxListings = collect($idxClient->fetchPowerOfSaleListings(4));
         } catch (\Throwable $exception) {
             Log::warning('IDX listings failed to load for welcome page.', [
                 'exception' => $exception->getMessage(),

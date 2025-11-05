@@ -79,6 +79,12 @@ npm run dev
 
 The configuration locks the port to `5173` (`strictPort=true`) and uses HMR over `localhost`. Update your `.env` with `APP_URL` that matches the Herd domain to avoid mixed-content or cookie issues.
 
+### Homepage IDX Feed
+
+- The welcome page shows a small live feed via PropTx (IDX) filtered for “Power of Sale” listings.
+- Requests use `$select` and deterministic ordering (`ModificationTimestamp,ListingKey`) and are cached for 5 minutes to keep the page snappy.
+- Configure credentials in `.env` (`IDX_BASE_URI`, `IDX_TOKEN`). For details and field mappings, see `Docs/proptx-api-mapping.md`.
+
 ### Queues & Scheduled Jobs
 
 The project defaults to the database queue driver; queue tables are already generated in `database/migrations`. You can run workers during development with:

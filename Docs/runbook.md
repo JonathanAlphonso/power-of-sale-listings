@@ -66,6 +66,23 @@ For CI, populate `FLUX_USERNAME` and `FLUX_LICENSE_KEY` secrets.
 | Run scheduled tasks manually | `php artisan schedule:run` |
 | Reset database | `php artisan migrate:fresh --seed` |
 
+### IDX / PropTx Integration
+
+- Credentials (PropTx) are configured via environment variables (see `.env.example`):
+  - `IDX_BASE_URI` – e.g., `https://query.ampre.ca/odata/`
+  - `IDX_TOKEN` – PropTx bearer token
+  - `RUN_LIVE_IDX_TESTS` – set `1` to enable live smoke tests locally (defaults to `0`)
+- Homepage feed:
+  - Uses a Power of Sale remarks-based query with deterministic ordering (`ModificationTimestamp,ListingKey`).
+  - Results are cached for 5 minutes using keys like `idx.pos.listings.4`.
+  - Timeouts: 6s for Property requests; 3s for Media lookups.
+- Clearing the cache:
+  - All caches: `php artisan cache:clear`
+  - Specific key (Tinker): `Cache::forget('idx.pos.listings.4')`
+- OData limitations:
+  - No `$expand`, no `$batch`, and no `tolower()`/`toupper()`; prefer `contains()` and simple boolean logic.
+  - Use `$select` to limit fields and `$orderby` for stable paging. See `Docs/proptx-api-mapping.md`.
+
 ### Admin Workspace
 
 After seeding, sign in with the administrator account to reach the secured workspace. All of the routes below require the `admin` middleware:

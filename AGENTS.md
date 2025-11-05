@@ -537,4 +537,7 @@ it('has emails', function (string $email) {
 - Tests can hit the live PropTx API when `RUN_LIVE_IDX_TESTS=1`; default to 0 locally/CI.
 - Do not add separate `PROPTX_*` keys; keep this mapping consistent across config, services, and tests.
 
+- Homepage demo uses a Power of Sale (PoS) remarks-based query via `IdxClient::fetchPowerOfSaleListings(4)`.
+- Results are cached for 5 minutes (`idx.pos.listings.{limit}`); clear via `php artisan cache:clear` or `Cache::forget()`.
+
 </laravel-boost-guidelines>

@@ -24,13 +24,15 @@
 -   [x] Provide admins the ability to trigger password reset emails or forced credential rotations for selected users.
 -   [x] Implement authorization policies and gates leveraging the new role model; ensure policy tests cover allow/deny paths.
 -   [x] Write Pest feature tests covering admin listing browse, filter, and detail actions; include Volt component tests for UI state.
--   [ ] Update navigation to expose admin dashboard routes only for authenticated users.
+-   [x] Update navigation to expose admin dashboard routes only for authenticated users.
 -   [x] Integrate Google Analytics configuration into admin settings and surface key metrics within the dashboard.
 -   [x] Refresh README and runbook with new commands (migrations, seeders, admin URLs).
 
 ## M2 – Data Intake & Normalisation
 
--   [ ] Configure PropTx API credentials, authentication flow, and scheduled sync jobs to ingest new and updated listings.
+-   [ ] PropTx API and auth flow
+-   [ ] Ingest new listings
+-   [ ] Ingest and update existing listings
 -   [ ] Normalise PropTx payloads into the canonical listing structure while persisting raw payload snapshots for auditing.
 -   [ ] Implement change-log tracking (created/updated/deactivated) and associate with listing history table.
 -   [ ] Surface PropTx sync statuses, errors, and metrics within an admin dashboard view.

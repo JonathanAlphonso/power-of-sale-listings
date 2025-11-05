@@ -43,6 +43,43 @@ Guidance:
 - Keep `$orderby` and `$top` straightforward; verify each new operator against the live API.
 - When you need relationship data, perform subsequent requests keyed by `ListingKey` (as done for `Media`).
 
+## Initial Seed Query (Power of Sale)
+
+For an initial data seed covering properties that match our “Power of Sale” criteria, use this request. It selects only the fields we’ll use or store, filters on remarks and transaction type, and applies a deterministic order for paging.
+
+```
+GET /odata/Property
+?$select=
+  ListingKey,OriginatingSystemName,ListingId,StandardStatus,MlsStatus,ContractStatus,
+  PropertyType,PropertySubType,ArchitecturalStyle,StreetNumber,StreetName,UnitNumber,City,
+  CityRegion,PostalCode,StateOrProvince,DaysOnMarket,BedroomsTotal,BathroomsTotalInteger,
+  LivingAreaRange,ListPrice,OriginalListPrice,ClosePrice,PreviousListPrice,PriceChangeTimestamp,
+  ModificationTimestamp,UnparsedAddress,InternetAddressDisplayYN,ParcelNumber,PublicRemarks,
+  TransactionType
+&$filter=
+  PublicRemarks ne null and (
+    contains(PublicRemarks,'power of sale') or
+    contains(PublicRemarks,'Power of Sale') or
+    contains(PublicRemarks,'POWER OF SALE') or
+    contains(PublicRemarks,'Power-of-Sale') or
+    contains(PublicRemarks,'Power-of-sale') or
+    contains(PublicRemarks,'P.O.S') or
+    contains(PublicRemarks,' POS ') or
+    contains(PublicRemarks,' POS,') or
+    contains(PublicRemarks,' POS.') or
+    contains(PublicRemarks,' POS-')
+  )
+  and TransactionType eq 'For Sale'
+&$orderby=ModificationTimestamp,ListingKey
+&$top=50
+```
+
+Notes
+
+- Use `$skip` to paginate in increments of 50 while the `$orderby` remains stable.
+- The repeated `contains()` calls cover case and punctuation variants; functions like `tolower()` are not supported.
+- Tie-breaking by `ListingKey` ensures deterministic paging when timestamps match.
+
 ## Recommended $select (Efficiency)
 
 Request only what we use. When implementing server-side ingestion, include a `$select` similar to:

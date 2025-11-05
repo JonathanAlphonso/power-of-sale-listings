@@ -660,18 +660,29 @@ X-Rate-Limit-Remaining is included in most responses and indicates the number of
 
 X-Rate-Limit-Retry-After-Seconds is used in cases where the rate limit has been exceeded, and it tells the client the number of seconds it needs to wait before it can make another request.
 
-Property?
-$filter=PublicRemarks ne null and (
-  contains(PublicRemarks,'power of sale') or
-  contains(PublicRemarks,'Power of Sale') or
-  contains(PublicRemarks,'POWER OF SALE') or
-  contains(PublicRemarks,'Power-of-Sale') or
-  contains(PublicRemarks,'Power-of-sale') or
-  contains(PublicRemarks,'P.O.S') or
-  contains(PublicRemarks,' POS ') or
-  contains(PublicRemarks,' POS,') or
-  contains(PublicRemarks,' POS.') or
-  contains(PublicRemarks,' POS-')
-)
-&$orderby=ModificationTimestamp desc
+Initial seed query (Power of Sale)
+
+GET /odata/Property
+?$select=
+  ListingKey,OriginatingSystemName,ListingId,StandardStatus,MlsStatus,ContractStatus,
+  PropertyType,PropertySubType,ArchitecturalStyle,StreetNumber,StreetName,UnitNumber,City,
+  CityRegion,PostalCode,StateOrProvince,DaysOnMarket,BedroomsTotal,BathroomsTotalInteger,
+  LivingAreaRange,ListPrice,OriginalListPrice,ClosePrice,PreviousListPrice,PriceChangeTimestamp,
+  ModificationTimestamp,UnparsedAddress,InternetAddressDisplayYN,ParcelNumber,PublicRemarks,
+  TransactionType
+&$filter=
+  PublicRemarks ne null and (
+    contains(PublicRemarks,'power of sale') or
+    contains(PublicRemarks,'Power of Sale') or
+    contains(PublicRemarks,'POWER OF SALE') or
+    contains(PublicRemarks,'Power-of-Sale') or
+    contains(PublicRemarks,'Power-of-sale') or
+    contains(PublicRemarks,'P.O.S') or
+    contains(PublicRemarks,' POS ') or
+    contains(PublicRemarks,' POS,') or
+    contains(PublicRemarks,' POS.') or
+    contains(PublicRemarks,' POS-')
+  )
+  and TransactionType eq 'For Sale'
+&$orderby=ModificationTimestamp,ListingKey
 &$top=50

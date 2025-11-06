@@ -109,7 +109,10 @@ class IdxClient
             ->timeout(10)
             ->baseUrl(rtrim($this->baseUri(), '/'))
             ->withToken($this->token())
-            ->acceptJson();
+            ->acceptJson()
+            ->withHeaders([
+                'OData-Version' => '4.0',
+            ]);
     }
 
     /**
@@ -266,18 +269,7 @@ class IdxClient
                 'TransactionType',
             ]);
 
-            $filter = 'PublicRemarks ne null and ('
-                ."contains(PublicRemarks,'power of sale') or "
-                ."contains(PublicRemarks,'Power of Sale') or "
-                ."contains(PublicRemarks,'POWER OF SALE') or "
-                ."contains(PublicRemarks,'Power-of-Sale') or "
-                ."contains(PublicRemarks,'Power-of-sale') or "
-                ."contains(PublicRemarks,'P.O.S') or "
-                ."contains(PublicRemarks,' POS ') or "
-                ."contains(PublicRemarks,' POS,') or "
-                ."contains(PublicRemarks,' POS.') or "
-                ."contains(PublicRemarks,' POS-')"
-                .") and TransactionType eq 'For Sale'";
+            $filter = $this->powerOfSaleFilter();
 
             $response = $this->connection()->timeout(6)->get('Property', [
                 '$select' => $select,
@@ -514,5 +506,22 @@ class IdxClient
             Cache::put('idx.metrics.last_at', now()->toIso8601String(), now()->addDay());
             Cache::put($prefix.'other', (int) Cache::get($prefix.'other', 0) + 1, now()->addDay());
         }
+    }
+
+    private function powerOfSaleFilter(): string
+    {
+        return 'PublicRemarks ne null and '
+            ."startswith(TransactionType,'For Sale') and ("
+            ."contains(PublicRemarks,'power of sale') or "
+            ."contains(PublicRemarks,'Power of Sale') or "
+            ."contains(PublicRemarks,'POWER OF SALE') or "
+            ."contains(PublicRemarks,'Power-of-Sale') or "
+            ."contains(PublicRemarks,'Power-of-sale') or "
+            ."contains(PublicRemarks,'P.O.S') or "
+            ."contains(PublicRemarks,' POS ') or "
+            ."contains(PublicRemarks,' POS,') or "
+            ."contains(PublicRemarks,' POS.') or "
+            ."contains(PublicRemarks,' POS-')"
+            .')';
     }
 }

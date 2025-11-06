@@ -67,7 +67,8 @@ class ImportVowPowerOfSale implements ShouldQueue
             'TransactionType',
         ]);
 
-        $filter = 'PublicRemarks ne null and ('
+        $filter = 'PublicRemarks ne null and '
+            ."startswith(TransactionType,'For Sale') and ("
             ."contains(PublicRemarks,'power of sale') or "
             ."contains(PublicRemarks,'Power of Sale') or "
             ."contains(PublicRemarks,'POWER OF SALE') or "
@@ -77,8 +78,7 @@ class ImportVowPowerOfSale implements ShouldQueue
             ."contains(PublicRemarks,' POS ') or "
             ."contains(PublicRemarks,' POS,') or "
             ."contains(PublicRemarks,' POS.') or "
-            ."contains(PublicRemarks,' POS-')"
-            .") and TransactionType eq 'For Sale'";
+            ."contains(PublicRemarks,' POS-')".')';
 
         $request = \Http::retry(3, 500)
             ->timeout(30)

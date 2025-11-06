@@ -12,9 +12,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
 
-class ImportIdxPowerOfSale implements ShouldQueue
+class ImportVowPowerOfSale implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -28,18 +27,10 @@ class ImportIdxPowerOfSale implements ShouldQueue
         $skip = 0;
         $pages = 0;
         $next = null;
-        $processed = 0;
-
-        Cache::put('idx.import.pos', [
-            'status' => 'running',
-            'items_total' => 0,
-            'pages' => 0,
-            'started_at' => now()->toISOString(),
-        ], now()->addMinutes(10));
 
         do {
             $pages++;
-            $page = $this->fetchPowerOfSalePage($idx, $top, $skip, $next);
+            $page = $this->fetchPowerOfSalePage($top, $skip, $next);
             $batch = $page['items'];
             $next = $page['next'];
 
@@ -53,75 +44,10 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 }
 
                 $this->upsertListingFromRaw($idx, $raw);
-                $processed++;
             }
 
             $skip += $top;
-            Cache::put('idx.import.pos', [
-                'status' => 'running',
-                'items_total' => $processed,
-                'pages' => $pages,
-                'last_at' => now()->toISOString(),
-            ], now()->addMinutes(10));
         } while ((count($batch) === $top || $next !== null) && $pages < $this->maxPages);
-
-        Cache::put('idx.import.pos', [
-            'status' => 'completed',
-            'items_total' => $processed,
-            'pages' => $pages,
-            'finished_at' => now()->toISOString(),
-        ], now()->addMinutes(10));
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function fetchPowerOfSaleBatch(IdxClient $idx, int $top, int $skip): array
-    {
-        // Mirror the query used by fetchPowerOfSaleListings, but return raw items
-        $select = implode(',', [
-            'ListingKey', 'OriginatingSystemName', 'ListingId', 'StandardStatus', 'MlsStatus', 'ContractStatus',
-            'PropertyType', 'PropertySubType', 'ArchitecturalStyle', 'StreetNumber', 'StreetName', 'UnitNumber', 'City',
-            'CityRegion', 'PostalCode', 'StateOrProvince', 'DaysOnMarket', 'BedroomsTotal', 'BathroomsTotalInteger',
-            'LivingAreaRange', 'ListPrice', 'OriginalListPrice', 'ClosePrice', 'PreviousListPrice', 'PriceChangeTimestamp',
-            'ModificationTimestamp', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
-            'TransactionType',
-        ]);
-
-        $filter = 'PublicRemarks ne null and ('
-            ."contains(PublicRemarks,'power of sale') or "
-            ."contains(PublicRemarks,'Power of Sale') or "
-            ."contains(PublicRemarks,'POWER OF SALE') or "
-            ."contains(PublicRemarks,'Power-of-Sale') or "
-            ."contains(PublicRemarks,'Power-of-sale') or "
-            ."contains(PublicRemarks,'P.O.S') or "
-            ."contains(PublicRemarks,' POS ') or "
-            ."contains(PublicRemarks,' POS,') or "
-            ."contains(PublicRemarks,' POS.') or "
-            ."contains(PublicRemarks,' POS-')"
-            .") and TransactionType eq 'For Sale'";
-
-        $response = \Http::retry(3, 500)
-            ->timeout(30)
-            ->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
-            ->withToken((string) config('services.idx.token', ''))
-            ->acceptJson()
-            ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
-            ->get('Property', [
-                '$select' => $select,
-                '$filter' => $filter,
-                '$orderby' => 'ModificationTimestamp,ListingKey',
-                '$top' => $top,
-                '$skip' => $skip,
-            ]);
-
-        if ($response->failed()) {
-            return [];
-        }
-
-        $payload = $response->json('value');
-
-        return is_array($payload) ? array_values(array_filter($payload, 'is_array')) : [];
     }
 
     /**
@@ -129,7 +55,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
      *
      * @return array{items: array<int, array<string, mixed>>, next: ?string}
      */
-    protected function fetchPowerOfSalePage(IdxClient $idx, int $top, int $skip, ?string $nextUrl = null): array
+    protected function fetchPowerOfSalePage(int $top, int $skip, ?string $nextUrl = null): array
     {
         // Base query components
         $select = implode(',', [
@@ -156,18 +82,14 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
         $request = \Http::retry(3, 500)
             ->timeout(30)
-            ->withToken((string) config('services.idx.token', ''))
+            ->withToken((string) config('services.vow.token', ''))
             ->acceptJson();
 
         $response = $nextUrl !== null
             ? (function () use ($request, $nextUrl) {
                 $next = (string) $nextUrl;
 
-                // Prefer requesting via the relative nextLink against the configured base URL
-                // to satisfy fakes that expect an exact relative path match like
-                // "Property?$skip=1&$top=1".
                 $relative = $next;
-
                 if (str_starts_with($next, 'http')) {
                     $path = (string) parse_url($next, PHP_URL_PATH);
                     $query = (string) parse_url($next, PHP_URL_QUERY);
@@ -175,11 +97,11 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 }
 
                 return $request
-                    ->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
+                    ->baseUrl(rtrim((string) config('services.vow.base_uri', ''), '/'))
                     ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
                     ->get($relative);
             })()
-            : $request->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
+            : $request->baseUrl(rtrim((string) config('services.vow.base_uri', ''), '/'))
                 ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
                 ->get('Property', [
                     '$select' => $select,
@@ -271,11 +193,11 @@ class ImportIdxPowerOfSale implements ShouldQueue
             'payload' => $raw,
         ], fn ($v) => $v !== null));
 
-        // Apply source with priority (IDX > VOW). Incoming here is IDX.
+        // Apply source with priority (IDX > VOW). Incoming here is VOW.
         $incomingSource = Source::query()->firstOrCreate([
-            'slug' => 'idx',
+            'slug' => 'vow',
         ], [
-            'name' => 'IDX (PropTx)',
+            'name' => 'VOW (PropTx)',
             'type' => 'PROP_TX',
         ]);
 
@@ -291,31 +213,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
             $listing->source_id = $incomingSource->id;
         }
 
-        try {
-            $listing->save();
-        } catch (\Illuminate\Database\QueryException $e) {
-            // Handle race condition or missed match on unique (board_code, mls_number)
-            if (str_contains(strtolower($e->getMessage()), 'duplicate entry') &&
-                str_contains($e->getMessage(), 'listings_board_code_mls_number_unique')) {
-                $conflict = Listing::withTrashed()
-                    ->where('board_code', $boardCode)
-                    ->where('mls_number', $mlsNumber)
-                    ->first();
-
-                if ($conflict !== null) {
-                    if (method_exists($conflict, 'trashed') && $conflict->trashed()) {
-                        $conflict->restore();
-                    }
-                    $conflict->fill($listing->getAttributes());
-                    $listing = $conflict;
-                    $listing->save();
-                } else {
-                    throw $e;
-                }
-            } else {
-                throw $e;
-            }
-        }
+        $listing->save();
 
         // Record status history (best-effort)
         $listing->recordStatusHistory($listing->status_code, $listing->display_status, $raw, $listing->modified_at ?? now());

@@ -2,6 +2,8 @@
 
 use App\Models\Listing;
 use App\Jobs\ImportIdxPowerOfSale;
+use App\Jobs\ImportVowPowerOfSale;
+use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Services\Idx\IdxClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +21,34 @@ new #[Layout('components.layouts.app')] class extends Component {
     public ?int $requestMs = null;
     public int $previewImageCount = 0;
 
+    /** @var array{configured: bool, base: string, tokenSet: bool, status: int|null, items: int|null, size: int|null, firstKeys: array<int,string>, error: string|null, checkedAt: string|null, fallback?: bool} */
+    public array $idxCheck = [
+        'configured' => false,
+        'base' => '',
+        'tokenSet' => false,
+        'status' => null,
+        'items' => null,
+        'size' => null,
+        'firstKeys' => [],
+        'error' => null,
+        'checkedAt' => null,
+        'fallback' => false,
+    ];
+
+    /** @var array{configured: bool, base: string, tokenSet: bool, status: int|null, items: int|null, size: int|null, firstKeys: array<int,string>, error: string|null, checkedAt: string|null, fallback?: bool} */
+    public array $vowCheck = [
+        'configured' => false,
+        'base' => '',
+        'tokenSet' => false,
+        'status' => null,
+        'items' => null,
+        'size' => null,
+        'firstKeys' => [],
+        'error' => null,
+        'checkedAt' => null,
+        'fallback' => false,
+    ];
+
     public function mount(IdxClient $idx): void
     {
         Gate::authorize('access-admin-area');
@@ -28,6 +58,10 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->message = $this->connected
             ? __('IDX credentials detected.')
             : __('IDX credentials required. Add IDX_BASE_URI and IDX_TOKEN to .env.');
+
+        // Initialize quick-check summaries
+        $this->idxCheck = $this->buildConfigCheck('idx');
+        $this->vowCheck = $this->buildConfigCheck('vow');
     }
 
     public function testConnection(IdxClient $idx): void
@@ -66,6 +100,18 @@ new #[Layout('components.layouts.app')] class extends Component {
         (new ImportIdxPowerOfSale(pageSize: 50, maxPages: 200))->handle($idx);
 
         $this->message = __('Import completed');
+    }
+
+    public function importVow(IdxClient $idx): void
+    {
+        (new ImportVowPowerOfSale(pageSize: 50, maxPages: 200))->handle($idx);
+        $this->message = __('VOW import completed');
+    }
+
+    public function importBoth(IdxClient $idx): void
+    {
+        (new ImportAllPowerOfSaleFeeds(pageSize: 50, maxPages: 200))->handle($idx);
+        $this->message = __('Combined IDX + VOW import completed');
     }
 
     #[Computed]
@@ -117,6 +163,16 @@ new #[Layout('components.layouts.app')] class extends Component {
             'min' => (float) (Listing::query()->min('list_price') ?? 0),
             'max' => (float) (Listing::query()->max('list_price') ?? 0),
         ];
+    }
+
+    public function testIdxRequest(): void
+    {
+        $this->idxCheck = $this->runProbe('idx');
+    }
+
+    public function testVowRequest(): void
+    {
+        $this->vowCheck = $this->runProbe('vow');
     }
 
     #[Computed]
@@ -194,6 +250,85 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
         $this->message = __('HTTP metrics cleared.');
     }
+
+    private function buildConfigCheck(string $name): array
+    {
+        $base = (string) config("services.{$name}.base_uri", '');
+        $idxBase = (string) config('services.idx.base_uri', '');
+        $token = (string) config("services.{$name}.token", '');
+
+        // Allow VOW tests to fall back to IDX base if VOW_BASE_URI is missing but token is present
+        $usingFallback = $name === 'vow' && $base === '' && filled($idxBase);
+        $effectiveBase = $usingFallback ? $idxBase : $base;
+
+        return [
+            'configured' => filled($effectiveBase) && filled($token),
+            'base' => $effectiveBase,
+            'tokenSet' => filled($token),
+            'status' => null,
+            'items' => null,
+            'size' => null,
+            'firstKeys' => [],
+            'error' => null,
+            'checkedAt' => null,
+            'fallback' => $usingFallback,
+        ];
+    }
+
+    private function runProbe(string $name): array
+    {
+        $check = $this->buildConfigCheck($name);
+
+        if (! $check['configured']) {
+            $check['error'] = 'Missing base URI or token';
+            return $check;
+        }
+
+        $base = rtrim((string) $check['base'], '/');
+        $token = (string) config("services.{$name}.token");
+
+        $filter = "PublicRemarks ne null and "
+            . "startswith(TransactionType,'For Sale') and ("
+            . "contains(PublicRemarks,'Power of Sale') or "
+            . "contains(PublicRemarks,'power of sale') or "
+            . "contains(PublicRemarks,'POWER OF SALE') or "
+            . "contains(PublicRemarks,'Power Of Sale'))";
+
+        $query = [
+            '$top' => 30,
+            '$filter' => $filter,
+        ];
+
+        $queryString = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+
+        try {
+            $resp = \Http::retry(2, 250)
+                ->timeout(20)
+                ->baseUrl($base)
+                ->withToken($token)
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                    'OData-Version' => '4.0',
+                ])
+                ->get('Property?'.$queryString);
+
+            $json = $resp->json();
+            $items = is_array($json) && is_array($json['value'] ?? null) ? (array) $json['value'] : [];
+
+            $check['status'] = $resp->status();
+            $check['items'] = count($items);
+            $check['size'] = strlen($resp->body() ?? '');
+            $check['firstKeys'] = array_values(array_filter(array_map(function ($row) {
+                return is_array($row) && isset($row['ListingKey']) ? (string) $row['ListingKey'] : null;
+            }, array_slice($items, 0, 5))));
+            $check['checkedAt'] = now()->toIso8601String();
+        } catch (\Throwable $e) {
+            $check['error'] = $e->getMessage();
+            $check['checkedAt'] = now()->toIso8601String();
+        }
+
+        return $check;
+    }
 }; ?>
 
 <section class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -244,11 +379,45 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </span>
                 </flux:button>
 
+                <flux:button variant="outline" wire:click="testIdxRequest" wire:loading.attr="disabled" wire:target="testIdxRequest">
+                    <span wire:loading.remove wire:target="testIdxRequest">{{ __('Test IDX (30)') }}</span>
+                    <span wire:loading wire:target="testIdxRequest" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Testing…') }}
+                    </span>
+                </flux:button>
+
                 @if($message !== '')
                     <span class="text-xs {{ $connected ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">{{ $message }}</span>
                 @endif
                 @if($requestMs)
                     <span class="text-xs text-zinc-600 dark:text-zinc-400">{{ __('Last test: :ms ms', ['ms' => $requestMs]) }}</span>
+                @endif
+            </div>
+
+            <div class="mt-3 grid gap-2 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('IDX last check') }}</dt>
+                    <dd class="font-mono">{{ $idxCheck['checkedAt'] ?: '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('HTTP') }}</dt>
+                    <dd class="font-semibold">{{ $idxCheck['status'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Items') }}</dt>
+                    <dd class="font-semibold">{{ $idxCheck['items'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Size') }}</dt>
+                    <dd class="font-semibold">{{ $idxCheck['size'] ? number_format($idxCheck['size']) . ' bytes' : '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('First keys') }}</dt>
+                    <dd class="font-mono truncate">{{ implode(', ', $idxCheck['firstKeys'] ?: []) ?: '—' }}</dd>
+                </div>
+                @if ($idxCheck['error'])
+                    <div class="text-xs text-red-600 dark:text-red-400">{{ $idxCheck['error'] }}</div>
                 @endif
             </div>
         </div>
@@ -273,6 +442,94 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <dd class="font-semibold">{{ number_format($this->suppressionCount) }}</dd>
                 </div>
             </dl>
+        </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 md:grid-cols-2">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <flux:heading size="sm" class="mb-3">{{ __('VOW / PropTx Status') }}</flux:heading>
+
+            <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Base URL') }}</dt>
+                    <dd class="font-mono text-zinc-900 dark:text-zinc-100">{{ $vowCheck['base'] !== '' ? $vowCheck['base'] : '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Token configured') }}</dt>
+                    <dd class="font-semibold {{ $vowCheck['tokenSet'] ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                        {{ $vowCheck['tokenSet'] ? __('Yes') : __('No') }}
+                    </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Last check') }}</dt>
+                    <dd class="font-mono">{{ $vowCheck['checkedAt'] ?: '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('HTTP') }}</dt>
+                    <dd class="font-semibold">{{ $vowCheck['status'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Items') }}</dt>
+                    <dd class="font-semibold">{{ $vowCheck['items'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Size') }}</dt>
+                    <dd class="font-semibold">{{ $vowCheck['size'] ? number_format($vowCheck['size']) . ' bytes' : '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('First keys') }}</dt>
+                    <dd class="font-mono truncate">{{ implode(', ', $vowCheck['firstKeys'] ?: []) ?: '—' }}</dd>
+                </div>
+                @if ($vowCheck['error'])
+                    <div class="text-xs text-red-600 dark:text-red-400">{{ $vowCheck['error'] }}</div>
+                @endif
+                @if ($vowCheck['fallback'])
+                    <div class="text-xs text-amber-700 dark:text-amber-300">{{ __('Using IDX_BASE_URI as fallback base URL') }}</div>
+                @endif
+            </dl>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+                <flux:button variant="primary" wire:click="testVowRequest" wire:loading.attr="disabled" wire:target="testVowRequest">
+                    <span wire:loading.remove wire:target="testVowRequest">{{ __('Test VOW (30)') }}</span>
+                    <span wire:loading wire:target="testVowRequest" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Testing…') }}
+                    </span>
+                </flux:button>
+                <flux:button variant="outline" wire:click="importVow" wire:loading.attr="disabled" wire:target="importVow">
+                    <span wire:loading.remove wire:target="importVow">{{ __('Import VOW') }}</span>
+                    <span wire:loading wire:target="importVow" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Importing…') }}
+                    </span>
+                </flux:button>
+                <flux:button icon="arrows-right-left" wire:click="importBoth" wire:loading.attr="disabled" wire:target="importBoth">
+                    <span wire:loading.remove wire:target="importBoth">{{ __('Import Both Now') }}</span>
+                    <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Importing…') }}
+                    </span>
+                </flux:button>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <flux:heading size="sm" class="mb-3">{{ __('Homepage Feed Cache') }}</flux:heading>
+            <dl class="grid gap-3 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Present') }}</dt>
+                    <dd class="font-semibold">{{ $this->feedCache['present'] ? __('Yes') : __('No') }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Cached items') }}</dt>
+                    <dd class="font-semibold">{{ number_format($this->feedCache['count']) }}</dd>
+                </div>
+            </dl>
+            <div class="mt-4 flex gap-2">
+                <flux:button variant="outline" icon="trash" wire:click="clearFeedCache" wire:loading.attr="disabled">
+                    {{ __('Clear feed cache') }}
+                </flux:button>
+            </div>
         </div>
     </div>
 

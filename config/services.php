@@ -45,4 +45,12 @@ return [
         'run_live_tests' => env('RUN_LIVE_IDX_TESTS', false),
     ],
 
+    // VOW / PropTx credentials (password-protected feed)
+    // Mirrors IDX but may return additional fields. Must not be publicly displayed.
+    'vow' => [
+        // If VOW_BASE_URI is not set, default to IDX_BASE_URI since both feeds share the same host.
+        'base_uri' => env('VOW_BASE_URI', env('IDX_BASE_URI')),
+        'token' => env('VOW_TOKEN'),
+    ],
+
 ];

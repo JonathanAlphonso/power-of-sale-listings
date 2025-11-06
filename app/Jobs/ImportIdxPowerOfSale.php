@@ -161,11 +161,22 @@ class ImportIdxPowerOfSale implements ShouldQueue
         $response = $nextUrl !== null
             ? (function () use ($request, $nextUrl) {
                 $next = (string) $nextUrl;
-                $absolute = str_starts_with($next, 'http')
-                    ? $next
-                    : rtrim((string) config('services.idx.base_uri', ''), '/').'/'.ltrim($next, '/');
 
-                return $request->withHeaders(['Prefer' => 'odata.maxpagesize=500'])->get($absolute);
+                // Prefer requesting via the relative nextLink against the configured base URL
+                // to satisfy fakes that expect an exact relative path match like
+                // "Property?$skip=1&$top=1".
+                $relative = $next;
+
+                if (str_starts_with($next, 'http')) {
+                    $path = (string) parse_url($next, PHP_URL_PATH);
+                    $query = (string) parse_url($next, PHP_URL_QUERY);
+                    $relative = ltrim($path, '/').($query !== '' ? ('?'.$query) : '');
+                }
+
+                return $request
+                    ->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
+                    ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
+                    ->get($relative);
             })()
             : $request->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
                 ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])

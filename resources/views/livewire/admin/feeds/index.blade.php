@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Listing;
+use App\Jobs\ImportIdxPowerOfSale;
 use App\Services\Idx\IdxClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +57,15 @@ new #[Layout('components.layouts.app')] class extends Component {
         // Clear the homepage demo cache, then re-fetch.
         Cache::forget('idx.pos.listings.4');
         $this->testConnection($idx);
+    }
+
+    public function importAllPowerOfSale(IdxClient $idx): void
+    {
+        // Run the import synchronously so tests can assert on progress cache.
+        // Page size kept modest to respect IDX APIs while ensuring progress is recorded.
+        (new ImportIdxPowerOfSale(pageSize: 50, maxPages: 200))->handle($idx);
+
+        $this->message = __('Import completed');
     }
 
     #[Computed]

@@ -135,6 +135,15 @@ it('follows @odata.nextLink pagination when provided', function (): void {
     config()->set('services.idx.token', 'test-token');
 
     Http::fake([
+        // Second page by relative nextLink (register first so it is matched before wildcard)
+        'idx.example/odata/Property?$skip=1&$top=1' => Http::response([
+            'value' => [[
+                'ListingKey' => 'N2', 'ListingId' => 'N2', 'OriginatingSystemName' => 'TRREB',
+                'City' => 'Toronto', 'StateOrProvince' => 'ON', 'UnparsedAddress' => 'B',
+                'StandardStatus' => 'Active', 'ListPrice' => 2, 'ModificationTimestamp' => now()->toISOString(),
+                'PropertyType' => 'Residential Freehold', 'PropertySubType' => 'Detached', 'PublicRemarks' => 'Power of Sale', 'TransactionType' => 'For Sale',
+            ]],
+        ], 200),
         // First page with nextLink
         'idx.example/odata/Property*' => Http::response([
             'value' => [[
@@ -144,15 +153,6 @@ it('follows @odata.nextLink pagination when provided', function (): void {
                 'PropertyType' => 'Residential Freehold', 'PropertySubType' => 'Detached', 'PublicRemarks' => 'Power of Sale', 'TransactionType' => 'For Sale',
             ]],
             '@odata.nextLink' => 'Property?$skip=1&$top=1',
-        ], 200),
-        // Second page by relative nextLink
-        'idx.example/odata/Property?$skip=1&$top=1' => Http::response([
-            'value' => [[
-                'ListingKey' => 'N2', 'ListingId' => 'N2', 'OriginatingSystemName' => 'TRREB',
-                'City' => 'Toronto', 'StateOrProvince' => 'ON', 'UnparsedAddress' => 'B',
-                'StandardStatus' => 'Active', 'ListPrice' => 2, 'ModificationTimestamp' => now()->toISOString(),
-                'PropertyType' => 'Residential Freehold', 'PropertySubType' => 'Detached', 'PublicRemarks' => 'Power of Sale', 'TransactionType' => 'For Sale',
-            ]],
         ], 200),
     ]);
 

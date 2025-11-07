@@ -1,6 +1,0 @@
-[Laravel Http] HTTP 200; items=20; size=151846 bytes; nextLink=no; @odata.count=n/a; firstKeys=["N12399755","W12176573","X12460392","S12284570","S12284569"]
-
-[IdxClient] items=12; firstKeys=["X12398695","W12176573","X12460392","W12428095","N12458120"]
-
-[Laravel Http RFC3986] HTTP 200; items=20; size=151846 bytes; url=Property?%24top=30&%24filter=PublicRemarks%20ne%20null%20and%20startswith%28TransactionType%2C%27For%20Sale%27%29%20and%20%28contains%28PublicRemarks%2C%27Power%20of%20Sale%27%29%20or%20contains%28PublicRemarks%2C%27power%20of%20sale%27%29%20or%20contains%28PublicRemarks%2C%27POWER%20OF%20SALE%27%29%20or%20contains%28PublicRemarks%2C%27Power%20Of%20Sale%27%29%29
-

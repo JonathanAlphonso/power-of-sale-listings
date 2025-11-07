@@ -43,6 +43,9 @@ return [
         'base_uri' => env('IDX_BASE_URI'),
         'token' => env('IDX_TOKEN'),
         'run_live_tests' => env('RUN_LIVE_IDX_TESTS', false),
+        // When true, the homepage will fall back to showing StandardStatus=Active
+        // listings if the PoS (Power of Sale) query returns no results.
+        'homepage_fallback_to_active' => env('IDX_HOMEPAGE_FALLBACK_ACTIVE', true),
     ],
 
     // VOW / PropTx credentials (password-protected feed)

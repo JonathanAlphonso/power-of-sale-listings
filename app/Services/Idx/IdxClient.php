@@ -105,8 +105,8 @@ class IdxClient
 
     private function connection(): PendingRequest
     {
-        return Http::retry(3, 250)
-            ->timeout(10)
+        return Http::retry(2, 200)
+            ->timeout(8)
             ->baseUrl(rtrim($this->baseUri(), '/'))
             ->withToken($this->token())
             ->acceptJson()
@@ -161,7 +161,8 @@ class IdxClient
                 'VirtualTourURLUnbranded',
             ]);
 
-            $response = $this->connection()->timeout(6)->get('Property', [
+            // Keep this request snappy to avoid overall page timeouts
+            $response = $this->connection()->retry(1, 200)->timeout(4)->get('Property', [
                 // Only return live/on-market listings
                 '$filter' => "StandardStatus eq 'Active'",
                 '$select' => $select,
@@ -271,7 +272,8 @@ class IdxClient
 
             $filter = $this->powerOfSaleFilter();
 
-            $response = $this->connection()->timeout(6)->get('Property', [
+            // Keep this request snappy to avoid overall page timeouts
+            $response = $this->connection()->retry(1, 200)->timeout(4)->get('Property', [
                 '$select' => $select,
                 '$filter' => $filter,
                 '$top' => $limit,
@@ -343,19 +345,28 @@ class IdxClient
         try {
             $result = [];
 
+            $select = implode(',', [
+                'MediaURL',
+                'MediaType',
+                'ResourceName',
+                'ResourceRecordKey',
+                'MediaModificationTimestamp',
+            ]);
+
+            // Enforce a small overall time budget for media lookups.
+            $started = microtime(true);
+            $maxSeconds = 2.0;
+
             foreach ($listingKeys as $key) {
+                if ((microtime(true) - $started) >= $maxSeconds) {
+                    break;
+                }
+
                 $escapedKey = str_replace("'", "''", $key);
 
-                $select = implode(',', [
-                    'MediaURL',
-                    'MediaType',
-                    'ResourceName',
-                    'ResourceRecordKey',
-                    'MediaModificationTimestamp',
-                ]);
-
                 $response = $this->connection()
-                    ->timeout(3)
+                    ->retry(0, 0)
+                    ->timeout(2)
                     ->get('Media', [
                         '$top' => 1,
                         '$orderby' => 'MediaModificationTimestamp desc',

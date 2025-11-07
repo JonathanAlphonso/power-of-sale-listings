@@ -31,15 +31,32 @@
 ## M2 – Data Intake & Normalisation
 
 -   [x] PropTx API and auth flow
--   [ ] Ingest new listings
--   [ ] Ingest and update existing listings
--   [ ] Normalise PropTx payloads into the canonical listing structure while persisting raw payload snapshots for auditing.
--   [ ] Implement change-log tracking (created/updated/deactivated) and associate with listing history table.
--   [ ] Surface PropTx sync statuses, errors, and metrics within an admin dashboard view.
--   [ ] Add retry, backoff, and rollback controls for failed API synchronisations; ensure idempotency on reprocessing.
--   [ ] Write queue job, API client, and dashboard tests covering happy paths, validation errors, and duplicate detection.
--   [ ] Schedule nightly duplicate/stale listing checks via Laravel scheduler with reporting to admin inbox/log.
--   [ ] Document PropTx integration workflow (API endpoints, rate limits, error codes) in runbook.
+-   [x] Ingest new listings
+-   [x] Ingest and update existing listings
+-   [x] Normalise PropTx payloads into the canonical listing structure while persisting raw payload snapshots for auditing.
+-   [x] Implement change-log tracking (created/updated/deactivated) and associate with listing history table.
+-   [x] Surface PropTx sync statuses, errors, and metrics within an admin dashboard view.
+-   [x] Add retry, backoff, and rollback controls for failed API synchronisations; ensure idempotency on reprocessing.
+-   [x] Write queue job, API client, and dashboard tests covering happy paths, validation errors, and duplicate detection.
+-   [x] Document PropTx integration workflow (API endpoints, rate limits, error codes) in runbook.
+
+## M2.1 – Listing Media Ingestion & Storage
+
+-   [ ] Migration: add storage columns to listing_media
+-   [ ] Config: media env vars + config/media.php
+-   [ ] Job: DownloadListingMedia to fetch/store images
+-   [ ] Throttle: rate limit and media queue
+-   [ ] Dispatch: queue downloads from syncMedia
+-   [ ] IDX: fetch Photo URLs and create media
+-   [ ] Command: listing-media:backfill (missing downloads)
+-   [ ] Command: listing-media:prune (dry-run, schedule)
+-   [ ] UI: prefer Storage URL, fallback remote
+-   [ ] Tests: job, commands, URL accessor
+-   [ ] Runbook: storage:link, env, worker notes
+-   [ ] Metrics: job success/failure counters
+-   [ ] Retention: policy for soft-deleted listings
+-   [ ] Optional: thumbnails/variants (pending)
+-   [ ] Schedule: nightly duplicate/stale checks
 
 ## M3 – Public Portal & Notifications
 

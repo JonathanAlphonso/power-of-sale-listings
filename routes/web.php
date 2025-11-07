@@ -67,6 +67,13 @@ Route::get('/', function (IdxClient $idxClient) {
     if ($idxFeedEnabled) {
         try {
             $idxListings = collect($idxClient->fetchPowerOfSaleListings(4));
+
+            if ($idxListings->isEmpty() && (bool) config('services.idx.homepage_fallback_to_active', true)) {
+                $fallback = collect($idxClient->fetchListings(4));
+                if ($fallback->isNotEmpty()) {
+                    $idxListings = $fallback;
+                }
+            }
         } catch (\Throwable $exception) {
             Log::warning('IDX listings failed to load for welcome page.', [
                 'exception' => $exception->getMessage(),

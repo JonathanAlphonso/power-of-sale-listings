@@ -147,7 +147,9 @@ class ImportVowPowerOfSale implements ShouldQueue
 
         $attrs = $this->mapListingAttributes($idx, $raw);
 
-        $boardCode = Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName') ?? 'UNKNOWN';
+        $boardCode = $this->normalizeBoardCode(
+            Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName')
+        );
         $mlsNumber = Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key;
 
         /** @var Listing|null $listing */
@@ -171,7 +173,7 @@ class ImportVowPowerOfSale implements ShouldQueue
 
         $listing->fill(array_filter([
             'municipality_id' => $municipalityId,
-            'board_code' => Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName') ?? 'UNKNOWN',
+            'board_code' => $boardCode,
             'mls_number' => Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key,
             'display_status' => $attrs['status'] ?? null,
             'status_code' => $attrs['status'] ?? null,
@@ -230,5 +232,40 @@ class ImportVowPowerOfSale implements ShouldQueue
         $mapped = $method->invoke($idx, $raw);
 
         return is_array($mapped) ? $mapped : [];
+    }
+
+    /**
+     * Normalize board name to a short code (e.g., "Toronto Regional Real Estate Board" => "TRREB").
+     */
+    private function normalizeBoardCode(?string $name): string
+    {
+        $value = trim((string) ($name ?? ''));
+        if ($value === '') {
+            return 'UNKNOWN';
+        }
+
+        // If it's already a short code without spaces, keep it (e.g., TRREB, OREB)
+        if (strlen($value) <= 16 && ! str_contains($value, ' ') && preg_match('/^[A-Za-z0-9]+$/', $value)) {
+            return strtoupper($value);
+        }
+
+        // Build an acronym from words, skipping common stopwords
+        $clean = preg_replace('/[^A-Za-z0-9\-\s]/', ' ', $value) ?? $value;
+        $tokens = preg_split('/[\s\-]+/', $clean, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $stop = ['of', 'the', 'and', 'for'];
+        $letters = '';
+
+        foreach ($tokens as $t) {
+            $lower = strtolower($t);
+            if (in_array($lower, $stop, true)) {
+                continue;
+            }
+            $letters .= strtoupper(substr($t, 0, 1));
+            if (strlen($letters) >= 16) {
+                break;
+            }
+        }
+
+        return $letters !== '' ? $letters : 'UNKNOWN';
     }
 }

@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public bool $tested = false;
     public bool $connected = false;
-    public string $message = '';
+    #[Url]
+    public string $notice = '';
     /** @var array<int, array<string, mixed>> */
     public array $preview = [];
     public ?int $requestMs = null;
@@ -55,7 +57,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         // Do not auto-fetch; only compute simple readiness state.
         $this->connected = $idx->isEnabled();
-        $this->message = $this->connected
+        $this->notice = $this->connected
             ? __('IDX credentials detected.')
             : __('IDX credentials required. Add IDX_BASE_URI and IDX_TOKEN to .env.');
 
@@ -77,12 +79,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                 ->filter(fn ($i) => is_array($i) && ! empty($i['image_url'] ?? null))
                 ->count();
             $this->connected = $this->connected && $this->preview !== [];
-            $this->message = $this->preview !== []
+            $this->notice = $this->preview !== []
                 ? __('IDX connection successful. Preview updated.')
                 : __('IDX connection responded with no results.');
         } catch (\Throwable $e) {
             $this->connected = false;
-            $this->message = __('IDX request failed: :msg', ['msg' => $e->getMessage()]);
+            $this->notice = __('IDX request failed: :msg', ['msg' => $e->getMessage()]);
         }
     }
 
@@ -93,25 +95,29 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->testConnection($idx);
     }
 
-    public function importAllPowerOfSale(IdxClient $idx): void
+    public function importAllPowerOfSale(): void
     {
-        // Run the import synchronously so tests can assert on progress cache.
-        // Page size kept modest to respect IDX APIs while ensuring progress is recorded.
-        (new ImportIdxPowerOfSale(pageSize: 50, maxPages: 200))->handle($idx);
-
-        $this->message = __('Import completed');
+        // Queue the import to avoid request timeouts.
+        ImportIdxPowerOfSale::dispatch(50, 200);
+        $this->notice = __('IDX import queued');
+        session()->flash('notice', $this->notice);
+        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
     }
 
-    public function importVow(IdxClient $idx): void
+    public function importVow(): void
     {
-        (new ImportVowPowerOfSale(pageSize: 50, maxPages: 200))->handle($idx);
-        $this->message = __('VOW import completed');
+        ImportVowPowerOfSale::dispatch(50, 200);
+        $this->notice = __('VOW import queued');
+        session()->flash('notice', $this->notice);
+        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
     }
 
-    public function importBoth(IdxClient $idx): void
+    public function importBoth(): void
     {
-        (new ImportAllPowerOfSaleFeeds(pageSize: 50, maxPages: 200))->handle($idx);
-        $this->message = __('Combined IDX + VOW import completed');
+        ImportAllPowerOfSaleFeeds::dispatch(50, 200);
+        $this->notice = __('Combined IDX + VOW import queued');
+        session()->flash('notice', $this->notice);
+        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
     }
 
     #[Computed]
@@ -337,6 +343,20 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
             {{ __('Manage external data feeds, test connectivity, and view a live preview of incoming records.') }}
         </flux:text>
+        @php($__uiNotice = $notice !== '' ? $notice : (string) (request()->query('notice', session('notice', ''))))
+        @if (! empty($__uiNotice))
+            <flux:callout
+                variant="neutral"
+                icon="information-circle"
+                x-data="{ visible: true }"
+                x-show="visible"
+                x-init="setTimeout(() => visible = false, 15000)"
+                data-min-visible-ms="15000"
+                data-ui-notice="{{ $__uiNotice }}"
+            >
+                {{ $__uiNotice }}
+            </flux:callout>
+        @endif
     </div>
 
     <div class="grid gap-6 md:grid-cols-2">
@@ -387,8 +407,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </span>
                 </flux:button>
 
-                @if($message !== '')
-                    <span class="text-xs {{ $connected ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">{{ $message }}</span>
+                @if($notice !== '')
+                    <span class="text-xs {{ $connected ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">{{ $notice }}</span>
                 @endif
                 @if($requestMs)
                     <span class="text-xs text-zinc-600 dark:text-zinc-400">{{ __('Last test: :ms ms', ['ms' => $requestMs]) }}</span>
@@ -510,6 +530,22 @@ new #[Layout('components.layouts.app')] class extends Component {
                         {{ __('Importing…') }}
                     </span>
                 </flux:button>
+                @php($__uiNoticeInline = $notice !== '' ? $notice : (string) (request()->query('notice', session('notice', ''))))
+                @if (! empty($__uiNoticeInline))
+                    <div class="basis-full">
+                        <flux:callout
+                            variant="neutral"
+                            icon="information-circle"
+                            x-data="{ visible: true }"
+                            x-show="visible"
+                            x-init="setTimeout(() => visible = false, 15000)"
+                            data-min-visible-ms="15000"
+                            data-ui-notice="{{ $__uiNoticeInline }}"
+                        >
+                            {{ $__uiNoticeInline }}
+                        </flux:callout>
+                    </div>
+                @endif
             </div>
         </div>
 

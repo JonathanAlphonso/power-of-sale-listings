@@ -18,4 +18,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
-    })->create();
+    })
+    // Ensure compiled Blade views are isolated per parallel process to avoid race conditions
+    ->booting(function (): void {
+        \Illuminate\Support\Facades\ParallelTesting::setUpProcess(function (int $token): void {
+            $path = storage_path('framework/views-'.$token);
+            if (! is_dir($path)) {
+                mkdir($path, 0777, true);
+            }
+
+            putenv('VIEW_COMPILED_PATH='.$path);
+            $_ENV['VIEW_COMPILED_PATH'] = $path;
+            $_SERVER['VIEW_COMPILED_PATH'] = $path;
+        });
+    })
+    ->create();

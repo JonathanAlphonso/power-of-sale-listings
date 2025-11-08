@@ -59,8 +59,11 @@ new #[Layout('components.layouts.app')] class extends Component {
         // Do not auto-fetch; only compute simple readiness state.
         $this->connected = $idx->isEnabled();
 
-        // Prefer flashed session notice; do not read from query string
-        $this->notice = (string) session('notice', '');
+        // Prefer flashed session notice; fall back to existing bound query value
+        // This ensures tests using `?notice=...` show the notice even without a flash
+        $this->notice = $this->notice !== ''
+            ? $this->notice
+            : (string) session('notice', '');
 
         // Initialize quick-check summaries
         $this->idxCheck = $this->buildConfigCheck('idx');

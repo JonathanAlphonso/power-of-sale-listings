@@ -585,7 +585,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         @if ($primaryPhoto !== null)
                             <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
                                 <img
-                                    src="{{ $primaryPhoto->url ?? $primaryPhoto->preview_url }}"
+                                    src="{{ $primaryPhoto->public_url }}"
                                     alt="{{ $primaryPhoto->label ?? __('Listing photo') }}"
                                     class="aspect-video w-full object-cover"
                                     loading="lazy"
@@ -598,7 +598,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 @foreach ($gallery->filter(fn ($mediaItem) => $primaryPhoto === null || $mediaItem->is($primaryPhoto) === false) as $mediaItem)
                                     <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
                                         <img
-                                            src="{{ $mediaItem->preview_url ?? $mediaItem->url }}"
+                                            src="{{ $mediaItem->public_url }}"
                                             alt="{{ $mediaItem->label ?? __('Listing photo') }}"
                                             class="aspect-video w-full object-cover"
                                             loading="lazy"

@@ -1,160 +1,19 @@
 <?php
 
-use App\Models\AnalyticsSetting;
-use App\Models\Listing;
-use App\Models\User;
-use App\Services\GoogleAnalytics\AnalyticsSummaryService;
-use App\Services\Idx\IdxClient;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ListingsController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Features;
 use Livewire\Volt\Volt;
 
-Route::get('/', function (IdxClient $idxClient) {
-    $connected = false;
-    $databaseName = null;
-    $tableSample = [];
-    $userCount = null;
-    $errorMessage = null;
-    $sampleListings = collect();
-    $listingsTableExists = false;
-    $idxListings = collect();
-    $idxFeedEnabled = $idxClient->isEnabled();
+Route::get('/', HomeController::class)->name('home');
 
-    try {
-        $connection = DB::connection();
-        $connection->getPdo();
+Route::get('listings', [ListingsController::class, 'index'])->name('listings.index');
 
-        $connected = true;
-        $databaseName = $connection->getDatabaseName();
+Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
 
-        $tableSample = (match ($connection->getDriverName()) {
-            'sqlite' => collect(
-                $connection->select("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"),
-            )->pluck('name'),
-            'pgsql' => collect(
-                $connection->select("SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'"),
-            )->pluck('name'),
-            'sqlsrv' => collect(
-                $connection->select('SELECT TABLE_NAME AS name FROM INFORMATION_SCHEMA.TABLES'),
-            )->pluck('name'),
-            default => collect($connection->select('SHOW TABLES'))->map(fn ($row) => collect($row)->first()),
-        })
-            ->take(5)
-            ->all();
-
-        if (Schema::hasTable((new User)->getTable())) {
-            $userCount = User::count();
-        }
-
-        if (Schema::hasTable((new Listing)->getTable())) {
-            $listingsTableExists = true;
-            $sampleListings = Listing::query()
-                ->visible()
-                ->with(['source', 'municipality', 'media'])
-                ->latest('modified_at')
-                ->limit(3)
-                ->get();
-        }
-    } catch (\Throwable $exception) {
-        $connected = false;
-        $errorMessage = $exception->getMessage();
-    }
-
-    if ($idxFeedEnabled) {
-        try {
-            $idxListings = collect($idxClient->fetchPowerOfSaleListings(4));
-
-            if ($idxListings->isEmpty() && (bool) config('services.idx.homepage_fallback_to_active', true)) {
-                $fallback = collect($idxClient->fetchListings(4));
-                if ($fallback->isNotEmpty()) {
-                    $idxListings = $fallback;
-                }
-            }
-        } catch (\Throwable $exception) {
-            Log::warning('IDX listings failed to load for welcome page.', [
-                'exception' => $exception->getMessage(),
-            ]);
-        }
-    }
-
-    return view('welcome', [
-        'dbConnected' => $connected,
-        'databaseName' => $databaseName,
-        'tableSample' => $tableSample,
-        'userCount' => $userCount,
-        'dbErrorMessage' => $errorMessage,
-        'sampleListings' => $sampleListings,
-        'listingsTableExists' => $listingsTableExists,
-        'idxListings' => $idxListings,
-        'idxFeedEnabled' => $idxFeedEnabled,
-    ]);
-})->name('home');
-
-Route::get('listings', function () {
-    $listings = Listing::query()
-        ->visible()
-        ->with(['source:id,name', 'municipality:id,name', 'media'])
-        ->latest('modified_at')
-        ->paginate(12);
-
-    return view('listings', [
-        'listings' => $listings,
-    ]);
-})->name('listings.index');
-
-Route::get('listings/{listing}', function (Listing $listing) {
-    if ($listing->isSuppressed()) {
-        abort(404);
-    }
-
-    $listing->load([
-        'media' => fn ($query) => $query->orderBy('position'),
-        'source:id,name',
-        'municipality:id,name',
-        'statusHistory' => fn ($query) => $query->orderByDesc('changed_at')->limit(5),
-    ]);
-
-    return view('listings.show', [
-        'listing' => $listing,
-    ]);
-})->name('listings.show');
-
-Route::get('dashboard', function (AnalyticsSummaryService $analyticsSummaryService) {
-    Gate::authorize('view-admin-dashboard');
-
-    $totalListings = Listing::query()->count();
-    $availableListings = Listing::query()
-        ->where('display_status', 'Available')
-        ->count();
-    $averageListPrice = Listing::query()->avg('list_price');
-    $recentListings = Listing::query()
-        ->with(['municipality:id,name', 'source:id,name'])
-        ->latest('modified_at')
-        ->limit(5)
-        ->get();
-    $totalUsers = User::query()->count();
-    $recentUsers = User::query()
-        ->latest('created_at')
-        ->limit(5)
-        ->get(['id', 'name', 'email', 'created_at']);
-    $analyticsSetting = AnalyticsSetting::current();
-    $analyticsSummary = $analyticsSummaryService->summary($analyticsSetting);
-
-    return view('dashboard', [
-        'totalListings' => $totalListings,
-        'availableListings' => $availableListings,
-        'averageListPrice' => $averageListPrice,
-        'recentListings' => $recentListings,
-        'totalUsers' => $totalUsers,
-        'recentUsers' => $recentUsers,
-        'analyticsSetting' => $analyticsSetting,
-        'analyticsSummary' => $analyticsSummary,
-    ]);
-})
+Route::get('dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'admin'])
     ->name('dashboard');
 

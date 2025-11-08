@@ -17,6 +17,18 @@ class ImportAllPowerOfSaleFeeds implements ShouldQueue
 
     public function __construct(public int $pageSize = 500, public int $maxPages = 200) {}
 
+    /**
+     * Prevent overlapping full imports to avoid duplicate work.
+     *
+     * @return array<int, mixed>
+     */
+    public function middleware(): array
+    {
+        return [
+            (new \Illuminate\Queue\Middleware\WithoutOverlapping('pos-import-all'))->expireAfter($this->timeout),
+        ];
+    }
+
     public function handle(IdxClient $idx): void
     {
         // Import IDX first (higher priority), then VOW

@@ -30,7 +30,7 @@
                 >
                     @if ($primaryMedia !== null)
                         <img
-                            src="{{ $primaryMedia->preview_url ?? $primaryMedia->url }}"
+                            src="{{ $primaryMedia->public_url }}"
                             alt="{{ $primaryMedia->label ?? $address }}"
                             class="aspect-video w-full object-cover"
                             loading="lazy"

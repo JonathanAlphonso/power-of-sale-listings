@@ -22,7 +22,7 @@ trait SyncsListingMedia
                     continue;
                 }
 
-                $this->media()->create([
+                $media = $this->media()->create([
                     'media_type' => 'image',
                     'label' => null,
                     'position' => $index,
@@ -34,6 +34,10 @@ trait SyncsListingMedia
                         'source' => 'payload.images',
                     ],
                 ]);
+
+                if (config('media.auto_download')) {
+                    \App\Jobs\DownloadListingMedia::dispatch((int) $media->id);
+                }
             }
 
             return;
@@ -56,7 +60,7 @@ trait SyncsListingMedia
                 $primaryUrl = $fallbackUrl;
             }
 
-            $this->media()->create([
+            $media = $this->media()->create([
                 'media_type' => 'image',
                 'label' => $imageSet['description'] ?? null,
                 'position' => $index,
@@ -69,6 +73,10 @@ trait SyncsListingMedia
                     'description' => $imageSet['description'] ?? null,
                 ]),
             ]);
+
+            if (config('media.auto_download')) {
+                \App\Jobs\DownloadListingMedia::dispatch((int) $media->id);
+            }
         }
     }
 }

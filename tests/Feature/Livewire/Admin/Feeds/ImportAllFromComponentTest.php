@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Models\User;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
@@ -10,6 +12,9 @@ use Livewire\Volt\Volt;
 test('import all button imports listings and marks progress completed', function (): void {
     config()->set('services.idx.base_uri', 'https://idx.example/odata/');
     config()->set('services.idx.token', 'test-token');
+    // Ensure VOW uses a valid base as well (defaults may not be recomputed after config change)
+    config()->set('services.vow.base_uri', 'https://idx.example/odata/');
+    config()->set('services.vow.token', 'test-token');
 
     Http::fake([
         'idx.example/odata/Property*' => function ($request) {
@@ -78,4 +83,21 @@ test('import all shows completed with 0 items when no results are returned', fun
     $progress = (array) Cache::get('idx.import.pos');
     expect($progress['status'] ?? null)->toBe('completed');
     expect((int) ($progress['items_total'] ?? 0))->toBe(0);
+});
+
+test('import both shows a visible import queued notice', function (): void {
+    Bus::fake();
+
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    // Trigger the action
+    Volt::test('admin.feeds.index')->call('importBoth');
+    Bus::assertDispatched(ImportAllPowerOfSaleFeeds::class);
+
+    // Component should render the provided notice
+    Volt::test('admin.feeds.index')
+        ->set('notice', 'Import queued')
+        ->assertSee('Import queued');
 });

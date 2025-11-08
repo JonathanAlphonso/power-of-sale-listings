@@ -151,7 +151,7 @@
                     @if ($primaryPhoto !== null)
                         <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-zinc-800">
                             <img
-                                src="{{ $primaryPhoto->url ?? $primaryPhoto->preview_url }}"
+                                src="{{ $primaryPhoto->public_url }}"
                                 alt="{{ $primaryPhoto->label ?? $listing->street_address ?? __('Listing photo') }}"
                                 class="aspect-video w-full object-cover"
                                 loading="lazy"
@@ -168,7 +168,7 @@
                             @foreach ($additionalMedia as $mediaItem)
                                 <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-zinc-800">
                                     <img
-                                        src="{{ $mediaItem->preview_url ?? $mediaItem->url }}"
+                                        src="{{ $mediaItem->public_url }}"
                                         alt="{{ $mediaItem->label ?? $listing->street_address ?? __('Listing photo') }}"
                                         class="aspect-video w-full object-cover"
                                         loading="lazy"

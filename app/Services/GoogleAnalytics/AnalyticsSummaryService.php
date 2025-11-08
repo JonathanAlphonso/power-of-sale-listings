@@ -44,7 +44,10 @@ class AnalyticsSummaryService
             );
         }
 
-        $cacheKey = sprintf('%s:%s', self::CACHE_KEY, (string) $setting->getKey());
+        $propertyId = is_string($setting->property_id) ? trim($setting->property_id) : '';
+        $measurementId = is_string($setting->measurement_id) ? trim($setting->measurement_id) : '';
+        $fingerprint = sha1($propertyId.'|'.$measurementId);
+        $cacheKey = sprintf('%s:%s:%s', self::CACHE_KEY, (string) $setting->getKey(), $fingerprint);
 
         return $this->cache->remember(
             $cacheKey,

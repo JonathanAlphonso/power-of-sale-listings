@@ -6,6 +6,11 @@ use App\Models\Listing;
 use App\Models\Municipality;
 use App\Models\Source;
 use App\Services\Idx\IdxClient;
+use App\Services\Idx\ListingTransformer;
+use App\Services\Idx\RequestFactory;
+use App\Support\BoardCode;
+use App\Support\ResoFilters;
+use App\Support\ResoSelects;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,8 +27,23 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
     public function __construct(public int $pageSize = 500, public int $maxPages = 200) {}
 
+    /**
+     * Prevent overlapping imports to avoid heavy duplicate work.
+     *
+     * @return array<int, mixed>
+     */
+    public function middleware(): array
+    {
+        return [
+            (new \Illuminate\Queue\Middleware\WithoutOverlapping('pos-import-idx'))->expireAfter($this->timeout),
+        ];
+    }
+
     public function handle(IdxClient $idx): void
     {
+        /** @var ListingTransformer $transformer */
+        $transformer = app(ListingTransformer::class);
+
         $top = max(1, min($this->pageSize, 100));
         $skip = 0;
         $pages = 0;
@@ -39,7 +59,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
         do {
             $pages++;
-            $page = $this->fetchPowerOfSalePage($idx, $top, $skip, $next);
+            $page = $this->fetchPowerOfSalePage($top, $skip, $next);
             $batch = $page['items'];
             $next = $page['next'];
 
@@ -52,7 +72,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
                     continue;
                 }
 
-                $this->upsertListingFromRaw($idx, $raw);
+                $this->upsertListingFromRaw($idx, $transformer, $raw);
                 $processed++;
             }
 
@@ -73,91 +93,22 @@ class ImportIdxPowerOfSale implements ShouldQueue
         ], now()->addMinutes(10));
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    protected function fetchPowerOfSaleBatch(IdxClient $idx, int $top, int $skip): array
-    {
-        // Mirror the query used by fetchPowerOfSaleListings, but return raw items
-        $select = implode(',', [
-            'ListingKey', 'OriginatingSystemName', 'ListingId', 'StandardStatus', 'MlsStatus', 'ContractStatus',
-            'PropertyType', 'PropertySubType', 'ArchitecturalStyle', 'StreetNumber', 'StreetName', 'UnitNumber', 'City',
-            'CityRegion', 'PostalCode', 'StateOrProvince', 'DaysOnMarket', 'BedroomsTotal', 'BathroomsTotalInteger',
-            'LivingAreaRange', 'ListPrice', 'OriginalListPrice', 'ClosePrice', 'PreviousListPrice', 'PriceChangeTimestamp',
-            'ModificationTimestamp', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
-            'TransactionType',
-        ]);
-
-        $filter = 'PublicRemarks ne null and '
-            ."startswith(TransactionType,'For Sale') and ("
-            ."contains(PublicRemarks,'power of sale') or "
-            ."contains(PublicRemarks,'Power of Sale') or "
-            ."contains(PublicRemarks,'POWER OF SALE') or "
-            ."contains(PublicRemarks,'Power-of-Sale') or "
-            ."contains(PublicRemarks,'Power-of-sale') or "
-            ."contains(PublicRemarks,'P.O.S') or "
-            ."contains(PublicRemarks,' POS ') or "
-            ."contains(PublicRemarks,' POS,') or "
-            ."contains(PublicRemarks,' POS.') or "
-            ."contains(PublicRemarks,' POS-')".')';
-
-        $response = \Http::retry(3, 500)
-            ->timeout(30)
-            ->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
-            ->withToken((string) config('services.idx.token', ''))
-            ->acceptJson()
-            ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
-            ->get('Property', [
-                '$select' => $select,
-                '$filter' => $filter,
-                '$orderby' => 'ModificationTimestamp,ListingKey',
-                '$top' => $top,
-                '$skip' => $skip,
-            ]);
-
-        if ($response->failed()) {
-            return [];
-        }
-
-        $payload = $response->json('value');
-
-        return is_array($payload) ? array_values(array_filter($payload, 'is_array')) : [];
-    }
+    // Removed unused batch fetch method to reduce duplication
 
     /**
      * Fetch a page of results. If nextUrl is provided, it is used directly (relative to base URI).
      *
      * @return array{items: array<int, array<string, mixed>>, next: ?string}
      */
-    protected function fetchPowerOfSalePage(IdxClient $idx, int $top, int $skip, ?string $nextUrl = null): array
+    protected function fetchPowerOfSalePage(int $top, int $skip, ?string $nextUrl = null): array
     {
         // Base query components
-        $select = implode(',', [
-            'ListingKey', 'OriginatingSystemName', 'ListingId', 'StandardStatus', 'MlsStatus', 'ContractStatus',
-            'PropertyType', 'PropertySubType', 'ArchitecturalStyle', 'StreetNumber', 'StreetName', 'UnitNumber', 'City',
-            'CityRegion', 'PostalCode', 'StateOrProvince', 'DaysOnMarket', 'BedroomsTotal', 'BathroomsTotalInteger',
-            'LivingAreaRange', 'ListPrice', 'OriginalListPrice', 'ClosePrice', 'PreviousListPrice', 'PriceChangeTimestamp',
-            'ModificationTimestamp', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
-            'TransactionType',
-        ]);
+        $select = ResoSelects::propertyPowerOfSaleImport();
 
-        $filter = 'PublicRemarks ne null and '
-            ."startswith(TransactionType,'For Sale') and ("
-            ."contains(PublicRemarks,'power of sale') or "
-            ."contains(PublicRemarks,'Power of Sale') or "
-            ."contains(PublicRemarks,'POWER OF SALE') or "
-            ."contains(PublicRemarks,'Power-of-Sale') or "
-            ."contains(PublicRemarks,'Power-of-sale') or "
-            ."contains(PublicRemarks,'P.O.S') or "
-            ."contains(PublicRemarks,' POS ') or "
-            ."contains(PublicRemarks,' POS,') or "
-            ."contains(PublicRemarks,' POS.') or "
-            ."contains(PublicRemarks,' POS-')".')';
-
-        $request = \Http::retry(3, 500)
-            ->timeout(30)
-            ->withToken((string) config('services.idx.token', ''))
-            ->acceptJson();
+        $filter = ResoFilters::powerOfSale();
+        /** @var RequestFactory $factory */
+        $factory = app(RequestFactory::class);
+        $request = $factory->idxProperty(preferMaxPage: true);
 
         $response = $nextUrl !== null
             ? (function () use ($request, $nextUrl) {
@@ -179,8 +130,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
                     ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
                     ->get($relative);
             })()
-            : $request->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
-                ->withHeaders(['Prefer' => 'odata.maxpagesize=500'])
+            : $request
                 ->get('Property', [
                     '$select' => $select,
                     '$filter' => $filter,
@@ -204,7 +154,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
         return ['items' => $items, 'next' => $next];
     }
 
-    protected function upsertListingFromRaw(IdxClient $idx, array $raw): void
+    protected function upsertListingFromRaw(IdxClient $idx, ListingTransformer $transformer, array $raw): void
     {
         $key = Arr::get($raw, 'ListingKey');
         if (! is_string($key) || $key === '') {
@@ -223,9 +173,9 @@ class ImportIdxPowerOfSale implements ShouldQueue
             $municipalityId = $municipality->id;
         }
 
-        $attrs = $this->mapListingAttributes($idx, $raw);
+        $attrs = $transformer->transform($raw);
 
-        $boardCode = $this->normalizeBoardCode(
+        $boardCode = BoardCode::fromSystemName(
             Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName')
         );
         $mlsNumber = Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key;
@@ -293,6 +243,16 @@ class ImportIdxPowerOfSale implements ShouldQueue
             $listing->source_id = $incomingSource->id;
         }
 
+        // Determine if anything actually changed (ignore noisy JSON payload changes)
+        $dirtyKeys = array_keys($listing->getDirty());
+        $effectiveDirty = array_values(array_diff($dirtyKeys, ['payload']));
+        $statusChanged = in_array('status_code', $dirtyKeys, true) || in_array('display_status', $dirtyKeys, true);
+
+        if ($effectiveDirty === []) {
+            // Nothing meaningful changed; skip save and history/media work
+            return;
+        }
+
         try {
             $listing->save();
         } catch (\Illuminate\Database\QueryException $e) {
@@ -319,55 +279,17 @@ class ImportIdxPowerOfSale implements ShouldQueue
             }
         }
 
-        // Record status history (best-effort)
-        $listing->recordStatusHistory($listing->status_code, $listing->display_status, $raw, $listing->modified_at ?? now());
-    }
-
-    protected function mapListingAttributes(IdxClient $idx, array $raw): array
-    {
-        // Use IdxClient's transform to maintain consistency.
-        $ref = new \ReflectionClass($idx);
-        $method = $ref->getMethod('transformListing');
-        $method->setAccessible(true);
-
-        /** @var array<string,mixed> $mapped */
-        $mapped = $method->invoke($idx, $raw);
-
-        return is_array($mapped) ? $mapped : [];
-    }
-
-    /**
-     * Normalize board name to a short code (e.g., "Toronto Regional Real Estate Board" => "TRREB").
-     */
-    private function normalizeBoardCode(?string $name): string
-    {
-        $value = trim((string) ($name ?? ''));
-        if ($value === '') {
-            return 'UNKNOWN';
+        // Record status history only when status fields changed
+        if ($statusChanged) {
+            $listing->recordStatusHistory($listing->status_code, $listing->display_status, $raw, $listing->modified_at ?? now());
         }
 
-        // If it's already a short code without spaces, keep it (e.g., TRREB, OREB)
-        if (strlen($value) <= 16 && ! str_contains($value, ' ') && preg_match('/^[A-Za-z0-9]+$/', $value)) {
-            return strtoupper($value);
-        }
-
-        // Build an acronym from words, skipping common stopwords
-        $clean = preg_replace('/[^A-Za-z0-9\-\s]/', ' ', $value) ?? $value;
-        $tokens = preg_split('/[\s\-]+/', $clean, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $stop = ['of', 'the', 'and', 'for'];
-        $letters = '';
-
-        foreach ($tokens as $t) {
-            $lower = strtolower($t);
-            if (in_array($lower, $stop, true)) {
-                continue;
-            }
-            $letters .= strtoupper(substr($t, 0, 1));
-            if (strlen($letters) >= 16) {
-                break;
-            }
-        }
-
-        return $letters !== '' ? $letters : 'UNKNOWN';
+        // Also sync media from the Media resource for this listing key.
+        // Queue per listing to avoid blocking the main import.
+        \App\Jobs\SyncIdxMediaForListing::dispatch((int) $listing->id, (string) $key)->onQueue('media');
     }
+
+    // Mapping handled by ListingTransformer
+
+    // Board code normalization handled by App\Support\BoardCode
 }

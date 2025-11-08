@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Idx;
 
+use App\Support\ResoFilters;
+use App\Support\ResoSelects;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Http\Client\PendingRequest;
@@ -15,7 +17,10 @@ use Throwable;
 
 class IdxClient
 {
-    public function __construct(private Repository $config) {}
+    public function __construct(
+        private Repository $config,
+        private ListingTransformer $transformer,
+    ) {}
 
     public function isEnabled(): bool
     {
@@ -48,18 +53,10 @@ class IdxClient
 
         $cacheKey = sprintf('idx.listings.%d', $limit);
 
-        if (Cache::has($cacheKey)) {
-            /** @var array<int, array<string, mixed>> $cached */
-            $cached = Cache::get($cacheKey, []);
-
-            return $cached;
-        }
-
-        $listings = $this->retrieveListings($limit);
-
-        if ($listings !== []) {
-            Cache::put($cacheKey, $listings, now()->addMinutes(5));
-        }
+        /** @var array<int, array<string, mixed>> $listings */
+        $listings = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($limit): array {
+            return $this->retrieveListings($limit);
+        });
 
         return $listings;
     }
@@ -77,18 +74,10 @@ class IdxClient
 
         $cacheKey = sprintf('idx.pos.listings.%d', $limit);
 
-        if (Cache::has($cacheKey)) {
-            /** @var array<int, array<string, mixed>> $cached */
-            $cached = Cache::get($cacheKey, []);
-
-            return $cached;
-        }
-
-        $listings = $this->retrievePowerOfSaleListings($limit);
-
-        if ($listings !== []) {
-            Cache::put($cacheKey, $listings, now()->addMinutes(5));
-        }
+        /** @var array<int, array<string, mixed>> $listings */
+        $listings = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($limit): array {
+            return $this->retrievePowerOfSaleListings($limit);
+        });
 
         return $listings;
     }
@@ -136,30 +125,7 @@ class IdxClient
     private function retrieveListings(int $limit): array
     {
         try {
-            $select = implode(',', [
-                'ListingKey',
-                'ListingId',
-                'OriginatingSystemName',
-                'UnparsedAddress',
-                'StreetNumber',
-                'StreetDirPrefix',
-                'StreetName',
-                'StreetSuffix',
-                'UnitNumber',
-                'City',
-                'StateOrProvince',
-                'PostalCode',
-                'StandardStatus',
-                'ModificationTimestamp',
-                'ListPrice',
-                'OriginalListPrice',
-                'PropertyType',
-                'PropertySubType',
-                'ListOfficeName',
-                'PublicRemarks',
-                'VirtualTourURLBranded',
-                'VirtualTourURLUnbranded',
-            ]);
+            $select = ResoSelects::propertyCard();
 
             // Keep this request snappy to avoid overall page timeouts
             $response = $this->connection()->retry(1, 200)->timeout(4)->get('Property', [
@@ -202,7 +168,7 @@ class IdxClient
             $limited = array_slice($filtered, 0, $limit);
 
             $transformed = array_values(array_map(
-                fn (array $listing): array => $this->transformListing($listing),
+                fn (array $listing): array => $this->transformer->transform($listing),
                 array_filter($limited, 'is_array')
             ));
 
@@ -213,7 +179,7 @@ class IdxClient
             )));
 
             if ($listingKeys !== []) {
-                $imageMap = $this->retrievePrimaryImagesByListingKey($listingKeys);
+                $imageMap = $this->retrievePrimaryImagesByListingKeyPooled($listingKeys);
 
                 foreach ($transformed as &$item) {
                     $key = $item['listing_key'] ?? null;
@@ -242,38 +208,12 @@ class IdxClient
     private function retrievePowerOfSaleListings(int $limit): array
     {
         try {
-            $select = implode(',', [
-                'ListingKey',
-                'ListingId',
-                'OriginatingSystemName',
-                'UnparsedAddress',
-                'StreetNumber',
-                'StreetDirPrefix',
-                'StreetName',
-                'StreetSuffix',
-                'UnitNumber',
-                'City',
-                'StateOrProvince',
-                'PostalCode',
-                'StandardStatus',
-                'MlsStatus',
-                'ContractStatus',
-                'ModificationTimestamp',
-                'ListPrice',
-                'OriginalListPrice',
-                'PropertyType',
-                'PropertySubType',
-                'ListOfficeName',
-                'PublicRemarks',
-                'VirtualTourURLBranded',
-                'VirtualTourURLUnbranded',
-                'TransactionType',
-            ]);
+            $select = ResoSelects::propertyPowerOfSaleCard();
 
-            $filter = $this->powerOfSaleFilter();
+            $filter = ResoFilters::powerOfSale();
 
-            // Keep this request snappy to avoid overall page timeouts
-            $response = $this->connection()->retry(1, 200)->timeout(4)->get('Property', [
+            // Keep this request snappy to avoid overall page timeouts (align with runbook ~6s)
+            $response = $this->connection()->retry(1, 200)->timeout(6)->get('Property', [
                 '$select' => $select,
                 '$filter' => $filter,
                 '$top' => $limit,
@@ -298,7 +238,7 @@ class IdxClient
             $limited = array_slice(array_values(array_filter($payload, 'is_array')), 0, $limit);
 
             $transformed = array_values(array_map(
-                fn (array $listing): array => $this->transformListing($listing),
+                fn (array $listing): array => $this->transformer->transform($listing),
                 $limited
             ));
 
@@ -308,7 +248,7 @@ class IdxClient
             )));
 
             if ($listingKeys !== []) {
-                $imageMap = $this->retrievePrimaryImagesByListingKey($listingKeys);
+                $imageMap = $this->retrievePrimaryImagesByListingKeyPooled($listingKeys);
 
                 foreach ($transformed as &$item) {
                     $key = $item['listing_key'] ?? null;
@@ -345,6 +285,17 @@ class IdxClient
         try {
             $result = [];
 
+            // Attempt to satisfy as many as possible from cache first.
+            $missing = [];
+            foreach ($listingKeys as $key) {
+                $cached = Cache::get('idx.media.primary_url.'.$key);
+                if (is_string($cached) && $cached !== '') {
+                    $result[$key] = $cached;
+                } else {
+                    $missing[] = $key;
+                }
+            }
+
             $select = implode(',', [
                 'MediaURL',
                 'MediaType',
@@ -357,7 +308,7 @@ class IdxClient
             $started = microtime(true);
             $maxSeconds = 2.0;
 
-            foreach ($listingKeys as $key) {
+            foreach ($missing as $key) {
                 if ((microtime(true) - $started) >= $maxSeconds) {
                     break;
                 }
@@ -400,6 +351,7 @@ class IdxClient
                     && is_string($resource)
                     && strtolower($resource) === 'property') {
                     $result[$key] = $url;
+                    Cache::put('idx.media.primary_url.'.$key, $url, now()->addMinutes(15));
                 }
             }
 
@@ -410,129 +362,239 @@ class IdxClient
     }
 
     /**
-     * @param  array<string, mixed>  $listing
-     * @return array{
-     *     listing_key: string|null,
-     *     address: string|null,
-     *     city: string|null,
-     *     state: string|null,
-     *     postal_code: string|null,
-     *     list_price: float|int|string|null,
-     *     status: string|null,
-     *     property_type: string|null,
-     *     property_sub_type: string|null,
-     *     list_office_name: string|null,
-     *     remarks: string|null,
-     *     modified_at: CarbonImmutable|null,
-     *     virtual_tour_url: string|null,
-     *     image_url: string|null,
-     * }
+     * Retrieve primary image URLs using small concurrent batches for responsiveness.
+     *
+     * @param  array<int, string>  $listingKeys
+     * @return array<string, string>
      */
-    private function transformListing(array $listing): array
+    private function retrievePrimaryImagesByListingKeyPooled(array $listingKeys): array
     {
-        $remarks = Arr::get($listing, 'PublicRemarks');
+        $listingKeys = array_values(array_unique(array_filter($listingKeys, 'is_string')));
 
-        $standard = Arr::get($listing, 'StandardStatus');
-        $mlsStatus = Arr::get($listing, 'MlsStatus');
-        $contract = Arr::get($listing, 'ContractStatus');
+        if ($listingKeys === []) {
+            return [];
+        }
 
-        return [
-            'listing_key' => Arr::get($listing, 'ListingKey'),
-            'address' => Arr::get($listing, 'UnparsedAddress') ?? $this->buildAddress($listing),
-            'city' => Arr::get($listing, 'City'),
-            'state' => Arr::get($listing, 'StateOrProvince'),
-            'postal_code' => Arr::get($listing, 'PostalCode'),
-            'list_price' => Arr::get($listing, 'ListPrice'),
-            // Prefer RESO StandardStatus; fall back to board-specific labels when needed
-            'status' => is_string($standard) && $standard !== ''
-                ? $standard
-                : (is_string($mlsStatus) && $mlsStatus !== ''
-                    ? $mlsStatus
-                    : (is_string($contract) && $contract !== '' ? $contract : null)),
-            'property_type' => Arr::get($listing, 'PropertyType'),
-            'property_sub_type' => Arr::get($listing, 'PropertySubType'),
-            'list_office_name' => Arr::get($listing, 'ListOfficeName'),
-            'remarks' => is_string($remarks) ? Str::limit(trim($remarks), 220) : null,
-            'modified_at' => CarbonImmutable::make(Arr::get($listing, 'ModificationTimestamp')),
-            'virtual_tour_url' => Arr::get($listing, 'VirtualTourURLBranded') ?? Arr::get($listing, 'VirtualTourURLUnbranded'),
-            'image_url' => null,
-        ];
+        try {
+            $result = [];
+
+            // Serve cached values when available and collect remaining keys to fetch.
+            $remaining = [];
+            foreach ($listingKeys as $key) {
+                $cached = Cache::get('idx.media.primary_url.'.$key);
+                if (is_string($cached) && $cached !== '') {
+                    $result[$key] = $cached;
+                } else {
+                    $remaining[] = $key;
+                }
+            }
+
+            $select = implode(',', [
+                'MediaURL',
+                'MediaType',
+                'ResourceName',
+                'ResourceRecordKey',
+                'MediaModificationTimestamp',
+            ]);
+
+            $started = microtime(true);
+            $maxSeconds = 2.0;
+
+            foreach (array_chunk($remaining, 5) as $chunk) {
+                if ((microtime(true) - $started) >= $maxSeconds) {
+                    break;
+                }
+
+                $responses = \Illuminate\Support\Facades\Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($chunk, $select) {
+                    $requests = [];
+
+                    foreach ($chunk as $key) {
+                        $escapedKey = str_replace("'", "''", $key);
+
+                        $requests[] = $pool
+                            ->as($key)
+                            ->retry(0, 0)
+                            ->timeout(2)
+                            ->baseUrl(rtrim($this->baseUri(), '/'))
+                            ->withToken($this->token())
+                            ->acceptJson()
+                            ->withHeaders([
+                                'OData-Version' => '4.0',
+                            ])
+                            ->get('Media', [
+                                '$top' => 1,
+                                '$orderby' => 'MediaModificationTimestamp desc',
+                                '$filter' => "ResourceName eq 'Property' and ResourceRecordKey eq '{$escapedKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active'",
+                                '$select' => $select,
+                            ]);
+                    }
+
+                    return $requests;
+                });
+
+                foreach ($chunk as $key) {
+                    /** @var \Illuminate\Http\Client\Response|null $response */
+                    $response = $responses[$key] ?? null;
+                    if (! $response instanceof \Illuminate\Http\Client\Response) {
+                        continue;
+                    }
+
+                    try {
+                        $this->recordHttpMetrics('media', $response->status());
+                    } catch (\Throwable) {
+                        // ignore
+                    }
+
+                    if ($response->failed()) {
+                        continue;
+                    }
+
+                    $item = $response->json('value.0');
+
+                    if (! is_array($item)) {
+                        continue;
+                    }
+
+                    $url = $item['MediaURL'] ?? null;
+                    $type = $item['MediaType'] ?? null;
+                    $resource = $item['ResourceName'] ?? null;
+
+                    if (is_string($url)
+                        && is_string($type)
+                        && str_starts_with(strtolower($type), 'image/')
+                        && is_string($resource)
+                        && strtolower($resource) === 'property') {
+                        $result[$key] = $url;
+                        Cache::put('idx.media.primary_url.'.$key, $url, now()->addMinutes(15));
+                    }
+                }
+            }
+
+            return $result;
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /**
-     * @param  array<string, mixed>  $listing
+     * Fetch photo media records for a specific Property listing key.
+     *
+     * @return array<int, array{url:string,label:?string,type:?string,size:?string,modified_at:?string,media_key:?string}>
      */
-    private function buildAddress(array $listing): ?string
+    public function fetchPropertyMedia(string $listingKey, int $limit = 25): array
     {
-        $street = array_filter([
-            Arr::get($listing, 'StreetNumber'),
-            Arr::get($listing, 'StreetDirPrefix'),
-            Arr::get($listing, 'StreetName'),
-            Arr::get($listing, 'StreetSuffix'),
-        ]);
-
-        if ($street === []) {
-            return null;
+        if (! $this->isEnabled()) {
+            return [];
         }
 
-        $cityLine = array_filter([
-            Arr::get($listing, 'City'),
-            Arr::get($listing, 'StateOrProvince'),
-            Arr::get($listing, 'PostalCode'),
-        ]);
+        try {
+            $escapedKey = str_replace("'", "''", $listingKey);
 
-        $address = implode(' ', $street);
+            $select = implode(',', [
+                'MediaURL',
+                'MediaType',
+                'ResourceName',
+                'ResourceRecordKey',
+                'MediaModificationTimestamp',
+                'ImageSizeDescription',
+                'LongDescription',
+                'ShortDescription',
+                'MediaKey',
+                'MediaCategory',
+                'MediaStatus',
+            ]);
 
-        if ($cityLine !== []) {
-            $address .= ', '.implode(', ', $cityLine);
+            $response = $this->connection()->retry(1, 200)->timeout(8)->get('Media', [
+                // Only Property photos that are currently active. Prefer a single size for consistency.
+                '$filter' => "ResourceName eq 'Property' and ResourceRecordKey eq '{$escapedKey}' and MediaCategory eq 'Photo' and MediaStatus eq 'Active' and ImageSizeDescription eq 'Large'",
+                '$select' => $select,
+                '$orderby' => 'MediaModificationTimestamp,MediaKey',
+                '$top' => max(1, min($limit, 50)),
+            ]);
+
+            try {
+                $this->recordHttpMetrics('media', $response->status());
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            if ($response->failed()) {
+                return [];
+            }
+
+            $payload = $response->json('value');
+            if (! is_array($payload)) {
+                return [];
+            }
+
+            $items = array_values(array_filter($payload, 'is_array'));
+
+            return array_values(array_map(function (array $item): array {
+                $url = $item['MediaURL'] ?? null;
+                $label = $item['LongDescription'] ?? ($item['ShortDescription'] ?? null);
+                $type = $item['MediaType'] ?? null;
+                $size = $item['ImageSizeDescription'] ?? null;
+                $modified = $item['MediaModificationTimestamp'] ?? null;
+                $key = $item['MediaKey'] ?? null;
+
+                return [
+                    'url' => is_string($url) ? $url : '',
+                    'label' => is_string($label) && $label !== '' ? $label : null,
+                    'type' => is_string($type) ? $type : null,
+                    'size' => is_string($size) ? $size : null,
+                    'modified_at' => is_string($modified) ? $modified : null,
+                    'media_key' => is_string($key) ? $key : null,
+                ];
+            }, $items));
+        } catch (Throwable) {
+            return [];
         }
-
-        return $address;
     }
+
+    // Address building is handled by the ListingTransformer
 
     private function recordHttpMetrics(string $scope, ?int $status, ?string $error = null): void
     {
         $prefix = sprintf('idx.metrics.%s.', $scope);
+        $ttl = now()->addDay();
 
         // Sliding window 24h
-        Cache::put('idx.metrics.window_started', Cache::get('idx.metrics.window_started', now()->toIso8601String()), now()->addDay());
+        Cache::put('idx.metrics.window_started', Cache::get('idx.metrics.window_started', now()->toIso8601String()), $ttl);
 
-        Cache::put($prefix.'total', (int) Cache::get($prefix.'total', 0) + 1, now()->addDay());
+        $writes = [
+            $prefix.'total' => (int) Cache::get($prefix.'total', 0) + 1,
+        ];
 
         if ($status !== null) {
-            Cache::put('idx.metrics.last_status', $status, now()->addDay());
-            Cache::put('idx.metrics.last_at', now()->toIso8601String(), now()->addDay());
+            $writes['idx.metrics.last_status'] = $status;
+            $writes['idx.metrics.last_at'] = now()->toIso8601String();
 
             if ($status >= 200 && $status < 300) {
-                Cache::put($prefix.'success', (int) Cache::get($prefix.'success', 0) + 1, now()->addDay());
+                $writes[$prefix.'success'] = (int) Cache::get($prefix.'success', 0) + 1;
             } elseif ($status === 429) {
-                Cache::put($prefix.'429', (int) Cache::get($prefix.'429', 0) + 1, now()->addDay());
+                $writes[$prefix.'429'] = (int) Cache::get($prefix.'429', 0) + 1;
             } elseif ($status >= 500) {
-                Cache::put($prefix.'5xx', (int) Cache::get($prefix.'5xx', 0) + 1, now()->addDay());
+                $writes[$prefix.'5xx'] = (int) Cache::get($prefix.'5xx', 0) + 1;
             } else {
-                Cache::put($prefix.'other', (int) Cache::get($prefix.'other', 0) + 1, now()->addDay());
+                $writes[$prefix.'other'] = (int) Cache::get($prefix.'other', 0) + 1;
             }
         } else {
-            Cache::put('idx.metrics.last_error', Str::limit((string) $error, 180), now()->addDay());
-            Cache::put('idx.metrics.last_at', now()->toIso8601String(), now()->addDay());
-            Cache::put($prefix.'other', (int) Cache::get($prefix.'other', 0) + 1, now()->addDay());
+            $writes['idx.metrics.last_error'] = Str::limit((string) $error, 180);
+            $writes['idx.metrics.last_at'] = now()->toIso8601String();
+            $writes[$prefix.'other'] = (int) Cache::get($prefix.'other', 0) + 1;
         }
-    }
 
-    private function powerOfSaleFilter(): string
-    {
-        return 'PublicRemarks ne null and '
-            ."startswith(TransactionType,'For Sale') and ("
-            ."contains(PublicRemarks,'power of sale') or "
-            ."contains(PublicRemarks,'Power of Sale') or "
-            ."contains(PublicRemarks,'POWER OF SALE') or "
-            ."contains(PublicRemarks,'Power-of-Sale') or "
-            ."contains(PublicRemarks,'Power-of-sale') or "
-            ."contains(PublicRemarks,'P.O.S') or "
-            ."contains(PublicRemarks,' POS ') or "
-            ."contains(PublicRemarks,' POS,') or "
-            ."contains(PublicRemarks,' POS.') or "
-            ."contains(PublicRemarks,' POS-')"
-            .')';
+        try {
+            $store = Cache::getStore();
+            if (method_exists($store, 'putMany')) {
+                $store->putMany($writes, $ttl);
+            } else {
+                foreach ($writes as $key => $value) {
+                    Cache::put($key, $value, $ttl);
+                }
+            }
+        } catch (\Throwable) {
+            // Best-effort metrics only
+        }
     }
 }

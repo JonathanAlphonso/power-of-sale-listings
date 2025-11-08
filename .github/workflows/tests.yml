@@ -60,5 +60,5 @@ jobs:
       - name: Build Assets
         run: npm run build
 
-      - name: Run Composer Test Suite
-        run: composer test
+      - name: Run Composer Test Suite (Parallel)
+        run: composer test:parallel

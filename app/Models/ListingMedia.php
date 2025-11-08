@@ -22,19 +22,23 @@ class ListingMedia extends Model
         'is_primary',
         'url',
         'preview_url',
+        'stored_disk',
+        'stored_path',
+        'stored_at',
         'variants',
         'meta',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'is_primary' => 'boolean',
-        'meta' => 'array',
-        'position' => 'integer',
-        'variants' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_primary' => 'boolean',
+            'meta' => 'array',
+            'position' => 'integer',
+            'stored_at' => 'datetime',
+            'variants' => 'array',
+        ];
+    }
 
     /**
      * @return BelongsTo<Listing, ListingMedia>
@@ -42,5 +46,18 @@ class ListingMedia extends Model
     public function listing(): BelongsTo
     {
         return $this->belongsTo(Listing::class);
+    }
+
+    public function getPublicUrlAttribute(): ?string
+    {
+        if (is_string($this->stored_disk) && $this->stored_disk !== '' && is_string($this->stored_path) && $this->stored_path !== '') {
+            try {
+                return \Illuminate\Support\Facades\Storage::disk($this->stored_disk)->url($this->stored_path);
+            } catch (\Throwable) {
+                // fall through to remote URLs
+            }
+        }
+
+        return $this->preview_url ?: $this->url;
     }
 }

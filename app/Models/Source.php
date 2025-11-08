@@ -33,15 +33,15 @@ class Source extends Model
         'meta',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'config' => 'array',
-        'is_active' => 'boolean',
-        'last_synced_at' => 'datetime',
-        'meta' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'config' => 'array',
+            'is_active' => 'boolean',
+            'last_synced_at' => 'datetime',
+            'meta' => 'array',
+        ];
+    }
 
     protected static function booted(): void
     {

@@ -29,17 +29,17 @@ class SavedSearch extends Model
         'meta',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'filters' => 'array',
-        'is_active' => 'boolean',
-        'last_matched_at' => 'datetime',
-        'last_ran_at' => 'datetime',
-        'meta' => 'array',
-        'next_run_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'filters' => 'array',
+            'is_active' => 'boolean',
+            'last_matched_at' => 'datetime',
+            'last_ran_at' => 'datetime',
+            'meta' => 'array',
+            'next_run_at' => 'datetime',
+        ];
+    }
 
     protected static function booted(): void
     {

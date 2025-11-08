@@ -5,6 +5,7 @@ use App\Jobs\ImportIdxPowerOfSale;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Services\Idx\IdxClient;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -57,9 +58,9 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         // Do not auto-fetch; only compute simple readiness state.
         $this->connected = $idx->isEnabled();
-        $this->notice = $this->connected
-            ? __('IDX credentials detected.')
-            : __('IDX credentials required. Add IDX_BASE_URI and IDX_TOKEN to .env.');
+
+        // Prefer flashed session notice; do not read from query string
+        $this->notice = (string) session('notice', '');
 
         // Initialize quick-check summaries
         $this->idxCheck = $this->buildConfigCheck('idx');
@@ -74,11 +75,16 @@ new #[Layout('components.layouts.app')] class extends Component {
             // Use a tiny preview to reduce latency.
             $start = microtime(true);
             $this->preview = $idx->fetchPowerOfSaleListings(4);
+            if ($this->preview === [] && (bool) config('services.idx.homepage_fallback_to_active', true)) {
+                // Fallback to StandardStatus=Active when there are no current PoS listings
+                $this->preview = $idx->fetchListings(4);
+            }
             $this->requestMs = (int) round((microtime(true) - $start) * 1000);
             $this->previewImageCount = collect($this->preview)
                 ->filter(fn ($i) => is_array($i) && ! empty($i['image_url'] ?? null))
                 ->count();
-            $this->connected = $this->connected && $this->preview !== [];
+            // Connection readiness is based on credentials, not result count
+            $this->connected = $idx->isEnabled();
             $this->notice = $this->preview !== []
                 ? __('IDX connection successful. Preview updated.')
                 : __('IDX connection responded with no results.');
@@ -101,7 +107,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         ImportIdxPowerOfSale::dispatch(50, 200);
         $this->notice = __('IDX import queued');
         session()->flash('notice', $this->notice);
-        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
+        $this->redirect(route('admin.feeds.index'));
     }
 
     public function importVow(): void
@@ -109,15 +115,48 @@ new #[Layout('components.layouts.app')] class extends Component {
         ImportVowPowerOfSale::dispatch(50, 200);
         $this->notice = __('VOW import queued');
         session()->flash('notice', $this->notice);
-        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
+        $this->redirect(route('admin.feeds.index'));
     }
 
     public function importBoth(): void
     {
+        // Skip if already running
+        $progress = (array) Cache::get('idx.import.pos', []);
+        if (($progress['status'] ?? null) === 'running') {
+            $this->notice = __('Import already running');
+            session()->flash('notice', $this->notice);
+            $this->redirect(route('admin.feeds.index'));
+            return;
+        }
+
+        // Skip if already queued in database driver
+        $alreadyQueued = false;
+        try {
+            if ((string) config('queue.default') === 'database') {
+                $table = (string) config('queue.connections.database.table', 'jobs');
+                $alreadyQueued = DB::table($table)
+                    ->where(function ($q) {
+                        $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
+                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                    })
+                    ->exists();
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        if ($alreadyQueued) {
+            $this->notice = __('Import already queued');
+            session()->flash('notice', $this->notice);
+            $this->redirect(route('admin.feeds.index'));
+            return;
+        }
+
         ImportAllPowerOfSaleFeeds::dispatch(50, 200);
-        $this->notice = __('Combined IDX + VOW import queued');
+        $this->notice = __('Import queued');
         session()->flash('notice', $this->notice);
-        $this->redirect('/admin/feeds?notice='.urlencode($this->notice));
+        $this->redirect(route('admin.feeds.index'));
     }
 
     #[Computed]
@@ -135,40 +174,48 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function dbStats(): array
     {
-        return [
-            'total' => Listing::query()->count(),
-            'available' => Listing::query()->where('display_status', 'Available')->count(),
-            'latest' => optional(Listing::query()->latest('modified_at')->value('modified_at')),
-        ];
+        return Cache::remember('admin.feeds.db_stats', now()->addSeconds(60), function (): array {
+            return [
+                'total' => Listing::query()->count(),
+                'available' => Listing::query()->where('display_status', 'Available')->count(),
+                'latest' => optional(Listing::query()->latest('modified_at')->value('modified_at')),
+            ];
+        });
     }
 
     #[Computed]
     public function statusCounts(): array
     {
-        return Listing::query()
-            ->select('display_status', DB::raw('COUNT(*) as total'))
-            ->whereNotNull('display_status')
-            ->groupBy('display_status')
-            ->orderByDesc('total')
-            ->limit(6)
-            ->pluck('total', 'display_status')
-            ->toArray();
+        return Cache::remember('admin.feeds.status_counts', now()->addSeconds(60), function (): array {
+            return Listing::query()
+                ->select('display_status', DB::raw('COUNT(*) as total'))
+                ->whereNotNull('display_status')
+                ->groupBy('display_status')
+                ->orderByDesc('total')
+                ->limit(6)
+                ->pluck('total', 'display_status')
+                ->toArray();
+        });
     }
 
     #[Computed]
     public function suppressionCount(): int
     {
-        return Listing::query()->suppressed()->count();
+        return Cache::remember('admin.feeds.suppression_count', now()->addSeconds(60), function (): int {
+            return Listing::query()->suppressed()->count();
+        });
     }
 
     #[Computed]
     public function priceStats(): array
     {
-        return [
-            'avg' => (float) (Listing::query()->avg('list_price') ?? 0),
-            'min' => (float) (Listing::query()->min('list_price') ?? 0),
-            'max' => (float) (Listing::query()->max('list_price') ?? 0),
-        ];
+        return Cache::remember('admin.feeds.price_stats', now()->addSeconds(60), function (): array {
+            return [
+                'avg' => (float) (Listing::query()->avg('list_price') ?? 0),
+                'min' => (float) (Listing::query()->min('list_price') ?? 0),
+                'max' => (float) (Listing::query()->max('list_price') ?? 0),
+            ];
+        });
     }
 
     public function testIdxRequest(): void
@@ -184,15 +231,17 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[Computed]
     public function topMunicipalities(): array
     {
-        return DB::table('municipalities')
-            ->join('listings', 'listings.municipality_id', '=', 'municipalities.id')
-            ->select('municipalities.name', DB::raw('COUNT(listings.id) as total'))
-            ->groupBy('municipalities.id', 'municipalities.name')
-            ->orderByDesc('total')
-            ->limit(5)
-            ->get()
-            ->map(fn ($r) => ['name' => $r->name, 'total' => (int) $r->total])
-            ->all();
+        return Cache::remember('admin.feeds.top_municipalities', now()->addSeconds(60), function (): array {
+            return DB::table('municipalities')
+                ->join('listings', 'listings.municipality_id', '=', 'municipalities.id')
+                ->select('municipalities.name', DB::raw('COUNT(listings.id) as total'))
+                ->groupBy('municipalities.id', 'municipalities.name')
+                ->orderByDesc('total')
+                ->limit(5)
+                ->get()
+                ->map(fn ($r) => ['name' => $r->name, 'total' => (int) $r->total])
+                ->all();
+        });
     }
 
     #[Computed]
@@ -209,7 +258,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function clearFeedCache(): void
     {
         Cache::forget('idx.pos.listings.4');
-        $this->message = __('Homepage feed cache cleared.');
+        $this->notice = __('Homepage feed cache cleared.');
     }
 
     #[Computed]
@@ -254,7 +303,129 @@ new #[Layout('components.layouts.app')] class extends Component {
         foreach (['window_started','last_status','last_error','last_at'] as $key) {
             Cache::forget("idx.metrics.{$key}");
         }
-        $this->message = __('HTTP metrics cleared.');
+        $this->notice = __('HTTP metrics cleared.');
+    }
+
+    #[Computed]
+    public function importStatus(): array
+    {
+        $status = (array) Cache::get('idx.import.pos', []);
+        $state = (string) ($status['status'] ?? '');
+        $running = $state === 'running';
+        $items = (int) ($status['items_total'] ?? 0);
+        $pages = (int) ($status['pages'] ?? 0);
+        $startedAt = (string) ($status['started_at'] ?? '');
+        $lastAt = (string) ($status['last_at'] ?? '');
+        $finishedAt = (string) ($status['finished_at'] ?? '');
+
+        // Best-effort: detect queued jobs waiting to run (database driver)
+        $pending = false;
+        $queueDetails = [
+            'driver' => (string) config('queue.default'),
+            'table' => null,
+            'match_count' => null,
+            'total_count' => null,
+            'oldest_created_at' => null,
+            'next_available_at' => null,
+            'jobs' => [], // up to 5
+        ];
+        try {
+            $driver = (string) config('queue.default');
+            $queueDetails['driver'] = $driver;
+            if ($driver === 'database') {
+                $table = (string) config('queue.connections.database.table', 'jobs');
+                $queueDetails['table'] = $table;
+
+                $matching = DB::table($table)
+                    ->select('id','queue','attempts','reserved_at','available_at','created_at','payload')
+                    ->where(function ($q) {
+                        $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
+                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                    })
+                    ->orderBy('id')
+                    ->get();
+
+                $queueDetails['match_count'] = $matching->count();
+                $pending = $matching->count() > 0;
+
+                $total = DB::table($table)->count();
+                $queueDetails['total_count'] = $total;
+
+                $first = $matching->first();
+                $last = $matching->last();
+
+                $toIso = function ($ts) {
+                    return is_null($ts) ? null : CarbonImmutable::createFromTimestamp((int) $ts)->toIso8601String();
+                };
+
+                if ($first) {
+                    $queueDetails['oldest_created_at'] = $toIso($first->created_at ?? null);
+                    $queueDetails['next_available_at'] = $toIso($first->available_at ?? null);
+                }
+
+                $queueDetails['jobs'] = collect($matching)->take(5)->map(function ($j) use ($toIso) {
+                    $type = 'unknown';
+                    $payload = (string) ($j->payload ?? '');
+                    if (str_contains($payload, 'ImportAllPowerOfSaleFeeds')) { $type = 'ImportAllPowerOfSaleFeeds'; }
+                    elseif (str_contains($payload, 'ImportIdxPowerOfSale')) { $type = 'ImportIdxPowerOfSale'; }
+                    elseif (str_contains($payload, 'ImportVowPowerOfSale')) { $type = 'ImportVowPowerOfSale'; }
+
+                    return [
+                        'id' => (int) $j->id,
+                        'queue' => (string) $j->queue,
+                        'attempts' => (int) $j->attempts,
+                        'reserved_at' => $toIso($j->reserved_at ?? null),
+                        'available_at' => $toIso($j->available_at ?? null),
+                        'created_at' => $toIso($j->created_at ?? null),
+                        'type' => $type,
+                    ];
+                })->all();
+            }
+        } catch (\Throwable) {
+            // Ignore if queue driver is not database or table missing
+        }
+
+        return [
+            'running' => $running,
+            'pending' => $pending,
+            'status' => $state !== '' ? $state : ($pending ? 'queued' : 'idle'),
+            'items' => $items,
+            'pages' => $pages,
+            'started_at' => $startedAt,
+            'last_at' => $lastAt,
+            'finished_at' => $finishedAt,
+            'queue' => $queueDetails,
+        ];
+    }
+
+    public function refreshQueueInfo(): void
+    {
+        // No-op: triggers a re-render so computed queue info refreshes.
+    }
+
+    public function cancelQueuedImports(): void
+    {
+        $deleted = 0;
+        try {
+            if ((string) config('queue.default') === 'database') {
+                $table = (string) config('queue.connections.database.table', 'jobs');
+                $deleted = DB::table($table)
+                    ->whereNull('reserved_at')
+                    ->where(function ($q) {
+                        $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
+                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                    })
+                    ->delete();
+            }
+        } catch (\Throwable) {
+            $deleted = 0;
+        }
+
+        $this->notice = trans_choice(':n queued import job cancelled.|:n queued import jobs cancelled.', $deleted, ['n' => $deleted]);
+        session()->flash('notice', $this->notice);
+        $this->redirect(route('admin.feeds.index'));
     }
 
     private function buildConfigCheck(string $name): array
@@ -343,18 +514,38 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
             {{ __('Manage external data feeds, test connectivity, and view a live preview of incoming records.') }}
         </flux:text>
-        @php($__uiNotice = $notice !== '' ? $notice : (string) (request()->query('notice', session('notice', ''))))
+        @php($__uiNotice = $notice !== '' ? $notice : (string) session('notice', ''))
         @if (! empty($__uiNotice))
+            <flux:callout
+                variant="success"
+                icon="check-circle"
+                x-data="{ visible: true }"
+                x-show="visible"
+                x-init="setTimeout(() => visible = false, 10000)"
+                data-min-visible-ms="10000"
+                data-ui-notice="{{ $__uiNotice }}"
+                class="ring-2 ring-emerald-500/30"
+                role="status"
+            >
+                {{ $__uiNotice }}
+            </flux:callout>
+        @endif
+
+        @php($__importTop = $this->importStatus)
+        @if ($__importTop['running'] || $__importTop['pending'])
             <flux:callout
                 variant="neutral"
                 icon="information-circle"
-                x-data="{ visible: true }"
-                x-show="visible"
-                x-init="setTimeout(() => visible = false, 15000)"
-                data-min-visible-ms="15000"
-                data-ui-notice="{{ $__uiNotice }}"
+                role="status"
             >
-                {{ $__uiNotice }}
+                <span class="font-semibold">{{ __('Import status:') }}</span>
+                @if ($__importTop['running'])
+                    <span class="text-emerald-600 dark:text-emerald-400">{{ __('Running') }}</span>
+                    <span class="text-zinc-500">—</span>
+                    <span>{{ number_format($__importTop['items']) }} {{ __('items') }}, {{ number_format($__importTop['pages']) }} {{ __('pages') }}</span>
+                @else
+                    <span class="text-amber-600 dark:text-amber-400">{{ __('Queued') }}</span>
+                @endif
             </flux:callout>
         @endif
     </div>
@@ -530,7 +721,73 @@ new #[Layout('components.layouts.app')] class extends Component {
                         {{ __('Importing…') }}
                     </span>
                 </flux:button>
-                @php($__uiNoticeInline = $notice !== '' ? $notice : (string) (request()->query('notice', session('notice', ''))))
+                <flux:button variant="outline" icon="x-mark" wire:click="cancelQueuedImports" wire:loading.attr="disabled" wire:target="cancelQueuedImports">
+                    <span wire:loading.remove wire:target="cancelQueuedImports">{{ __('Cancel queued imports') }}</span>
+                    <span wire:loading wire:target="cancelQueuedImports" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Cancelling…') }}
+                    </span>
+                </flux:button>
+
+                @php($__import = $this->importStatus)
+                <div class="basis-full"></div>
+                <flux:callout
+                    variant="neutral"
+                    icon="information-circle"
+                    class="min-w-[16rem]"
+                    role="status"
+                >
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold">{{ __('Import status:') }}</span>
+                        @if ($__import['running'])
+                            <span class="text-emerald-600 dark:text-emerald-400">{{ __('Running') }}</span>
+                            <span class="text-zinc-500">—</span>
+                            <span>{{ number_format($__import['items']) }} {{ __('items') }}, {{ number_format($__import['pages']) }} {{ __('pages') }}</span>
+                        @elseif ($__import['pending'])
+                            <span class="text-amber-600 dark:text-amber-400">{{ __('Queued') }}</span>
+                        @else
+                            <span class="text-zinc-600 dark:text-zinc-400">{{ __('Idle') }}</span>
+                        @endif
+                    </div>
+                    @php($__q = $__import['queue'])
+                    <div class="mt-2 grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
+                        <div>{{ __('Driver: :d', ['d' => $__q['driver'] ?? '—']) }}</div>
+                        @if((string)($__q['driver'] ?? '') === 'database')
+                            <div>{{ __('Table: :t', ['t' => $__q['table'] ?? '—']) }}</div>
+                            <div>{{ __('Matching jobs: :m / Total: :t', ['m' => (int)($__q['match_count'] ?? 0), 't' => (int)($__q['total_count'] ?? 0)]) }}</div>
+                            <div>
+                                {{ __('Oldest created: :c', ['c' => $__q['oldest_created_at'] ?? '—']) }}
+                                <span class="mx-1">•</span>
+                                {{ __('Next available: :a', ['a' => $__q['next_available_at'] ?? '—']) }}
+                            </div>
+                            @if(!empty($__q['jobs']))
+                                <ul class="mt-1 space-y-0.5">
+                                    @foreach(array_slice($__q['jobs'], 0, 3) as $__job)
+                                        <li>
+                                            #{{ $__job['id'] }} — {{ $__job['type'] }} ({{ __('attempts') }}: {{ $__job['attempts'] }})
+                                            <span class="mx-1">•</span>
+                                            {{ __('created') }}: {{ $__job['created_at'] ?? '—' }}
+                                            @if($__job['reserved_at'])
+                                                <span class="mx-1">•</span>
+                                                {{ __('reserved') }}: {{ $__job['reserved_at'] }}
+                                            @endif
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        @endif
+                    </div>
+                    <div class="mt-2">
+                        <flux:button size="xs" variant="outline" icon="arrow-path" wire:click="refreshQueueInfo" wire:loading.attr="disabled" wire:target="refreshQueueInfo">
+                            <span wire:loading.remove wire:target="refreshQueueInfo">{{ __('Refresh queue info') }}</span>
+                            <span wire:loading wire:target="refreshQueueInfo" class="inline-flex items-center gap-1">
+                                <flux:icon name="arrow-path" class="animate-spin" />
+                                {{ __('Refreshing…') }}
+                            </span>
+                        </flux:button>
+                    </div>
+                </flux:callout>
+                @php($__uiNoticeInline = $notice !== '' ? $notice : (string) session('notice', ''))
                 @if (! empty($__uiNoticeInline))
                     <div class="basis-full">
                         <flux:callout

@@ -72,24 +72,24 @@ class Listing extends Model
         'suppression_notes',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'bathrooms' => 'decimal:1',
-        'is_address_public' => 'boolean',
-        'latitude' => 'decimal:7',
-        'list_price' => 'decimal:2',
-        'longitude' => 'decimal:7',
-        'modified_at' => 'datetime',
-        'original_list_price' => 'decimal:2',
-        'payload' => 'array',
-        'price' => 'decimal:2',
-        'price_low' => 'decimal:2',
-        'price_per_square_foot' => 'decimal:2',
-        'suppressed_at' => 'datetime',
-        'suppression_expires_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'bathrooms' => 'decimal:1',
+            'is_address_public' => 'boolean',
+            'latitude' => 'decimal:7',
+            'list_price' => 'decimal:2',
+            'longitude' => 'decimal:7',
+            'modified_at' => 'datetime',
+            'original_list_price' => 'decimal:2',
+            'payload' => 'array',
+            'price' => 'decimal:2',
+            'price_low' => 'decimal:2',
+            'price_per_square_foot' => 'decimal:2',
+            'suppressed_at' => 'datetime',
+            'suppression_expires_at' => 'datetime',
+        ];
+    }
 
     public function media(): HasMany
     {

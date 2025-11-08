@@ -208,3 +208,45 @@ it('updates a soft-deleted duplicate instead of inserting a new row', function (
     expect($rowsVisible->count())->toBe(1);
     expect((int) $rowsVisible->first()->list_price)->toBe(519000);
 });
+
+it('does not append status history when import payload is unchanged', function (): void {
+    config()->set('services.idx.base_uri', 'https://idx.example/odata/');
+    config()->set('services.idx.token', 'test-token');
+
+    $payload = [
+        'value' => [[
+            'ListingKey' => 'IDEMP1',
+            'ListingId' => 'IDEMP1',
+            'OriginatingSystemName' => 'TRREB',
+            'City' => 'Toronto',
+            'StateOrProvince' => 'ON',
+            'UnparsedAddress' => '1 King St W, Toronto, ON',
+            'StreetNumber' => '1',
+            'StreetName' => 'King',
+            'StreetSuffix' => 'St W',
+            'StandardStatus' => 'Active',
+            'ListPrice' => 750000,
+            'ModificationTimestamp' => now()->toISOString(),
+            'PropertyType' => 'Residential Freehold',
+            'PropertySubType' => 'Detached',
+            'PublicRemarks' => 'Power of Sale',
+            'TransactionType' => 'For Sale',
+        ]],
+    ];
+
+    Http::fake([
+        'idx.example/odata/Property*' => Http::response($payload, 200),
+    ]);
+
+    // First import
+    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\IdxClient::class));
+
+    $listing = \App\Models\Listing::query()->where('external_id', 'IDEMP1')->firstOrFail();
+    $count1 = \App\Models\ListingStatusHistory::query()->where('listing_id', $listing->id)->count();
+    expect($count1)->toBe(1);
+
+    // Second import with identical payload should not create a new history row
+    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\IdxClient::class));
+    $count2 = \App\Models\ListingStatusHistory::query()->where('listing_id', $listing->id)->count();
+    expect($count2)->toBe($count1);
+});

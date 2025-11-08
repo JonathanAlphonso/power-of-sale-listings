@@ -27,14 +27,14 @@ class ListingSuppression extends Model
         'release_notes',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'expires_at' => 'datetime',
-        'released_at' => 'datetime',
-        'suppressed_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'expires_at' => 'datetime',
+            'released_at' => 'datetime',
+            'suppressed_at' => 'datetime',
+        ];
+    }
 
     /**
      * Determine if the suppression is currently active.

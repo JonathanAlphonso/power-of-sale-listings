@@ -24,13 +24,13 @@ class ListingStatusHistory extends Model
         'payload',
     ];
 
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'changed_at' => 'datetime',
-        'payload' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'changed_at' => 'datetime',
+            'payload' => 'array',
+        ];
+    }
 
     /**
      * @return BelongsTo<Listing, ListingStatusHistory>

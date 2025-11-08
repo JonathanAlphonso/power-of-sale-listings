@@ -11,7 +11,7 @@
 
             @if ($primaryMedia !== null)
                 <img
-                    src="{{ $primaryMedia->preview_url ?? $primaryMedia->url }}"
+                    src="{{ $primaryMedia->public_url }}"
                     alt="{{ $primaryMedia->label ?? $selectedListing->street_address ?? __('Listing image') }}"
                     class="aspect-video w-full object-cover"
                     loading="lazy"

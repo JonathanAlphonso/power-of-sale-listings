@@ -136,3 +136,53 @@ GitHub Actions replicate these commands for every push/PR to `develop` and `main
 
 - Update `Docs/task-list.md` as milestones close.
 - Log recurring issues or environment overrides in this runbook so new contributors can ramp quickly.
+## Queue Worker Setup
+
+Data feed imports (including the “Import Both Now” button on `/admin/feeds`) dispatch jobs to the queue. A running queue worker is required in any environment where you expect imports to process.
+
+### Local Development
+
+- Start a worker in the foreground during a dev session:
+  - `php artisan queue:work --sleep=3 --tries=3 --timeout=1800`
+- Or run in the background and capture logs:
+  - `nohup php artisan queue:work --sleep=3 --tries=3 --timeout=1800 > storage/logs/queue-worker.log 2>&1 &`
+  - Inspect running workers: `ps aux | grep "queue:work"`
+  - Tail logs: `tail -f storage/logs/queue-worker.log`
+
+Notes:
+- The project defaults to the `database` queue driver. Ensure migrations include the `jobs` and `failed_jobs` tables (`php artisan migrate`).
+- In the test suite we force `QUEUE_CONNECTION=sync` to execute jobs inline; do not use this in development or production.
+- On Windows + WSL: run the worker in the same environment that can reach MySQL. If PHP (WSL) can’t connect to `127.0.0.1:3307`, start the worker via Herd/Windows Terminal instead of WSL, or temporarily set `QUEUE_CONNECTION=sync` in `.env` for local testing.
+
+### Production (Forge or Supervisor)
+
+Use your platform’s process manager to keep workers alive across deploys:
+
+- Forge Daemon (recommended):
+  - Command: `php artisan queue:work --sleep=3 --tries=3 --timeout=1800`
+  - User: your site user (e.g., `forge`)
+  - Autostart on reboot and after deploy.
+
+- Supervisor example (`/etc/supervisor/conf.d/laravel-worker.conf`):
+  ```ini
+  [program:laravel-worker]
+  process_name=%(program_name)s_%(process_num)02d
+  command=php /var/www/html/artisan queue:work --sleep=3 --tries=3 --timeout=1800
+  autostart=true
+  autorestart=true
+  numprocs=1
+  redirect_stderr=true
+  stdout_logfile=/var/www/html/storage/logs/queue-worker.log
+  stopwaitsecs=60
+  ```
+  Then: `sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start laravel-worker:*`
+
+### Verifying Workers Are Running
+
+- Process check: `ps aux | grep "queue:work"` should show at least one `php artisan queue:work` process.
+- Health check by dispatching a test job:
+  - `php artisan tinker` → `\Illuminate\Support\Facades\Bus::dispatchSync(new App\Jobs\ImportAllPowerOfSaleFeeds(50, 1));` (dev only)
+  - Or queue a fake job and look for it to clear from the `jobs` table.
+- Review logs for recent activity: `tail -n 200 storage/logs/laravel.log` and `storage/logs/queue-worker.log` (if using `nohup`/Supervisor).
+
+If you see “Import queued” on `/admin/feeds` but nothing happens, a worker is not running.

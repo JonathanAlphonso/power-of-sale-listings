@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Listing;
 use App\Models\Municipality;
+use App\Models\ReplicationCursor;
 use App\Models\Source;
 use App\Services\Idx\IdxClient;
 use App\Services\Idx\ListingTransformer;
@@ -11,6 +12,7 @@ use App\Services\Idx\RequestFactory;
 use App\Support\BoardCode;
 use App\Support\ResoFilters;
 use App\Support\ResoSelects;
+use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -45,10 +47,21 @@ class ImportIdxPowerOfSale implements ShouldQueue
         $transformer = app(ListingTransformer::class);
 
         $top = max(1, min($this->pageSize, 100));
-        $skip = 0;
         $pages = 0;
         $next = null;
         $processed = 0;
+
+        // Replication cursor: last timestamp + last key
+        $channel = 'idx.property.pos';
+        /** @var ReplicationCursor $cursor */
+        $cursor = ReplicationCursor::query()->firstOrCreate(['channel' => $channel], [
+            'last_timestamp' => CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC'),
+            'last_key' => '0',
+        ]);
+        $lastTs = $cursor->last_timestamp instanceof \DateTimeInterface
+            ? CarbonImmutable::instance($cursor->last_timestamp)
+            : CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC');
+        $lastKey = is_string($cursor->last_key) && $cursor->last_key !== '' ? $cursor->last_key : '0';
 
         Cache::put('idx.import.pos', [
             'status' => 'running',
@@ -59,7 +72,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
         do {
             $pages++;
-            $page = $this->fetchPowerOfSalePage($top, $skip, $next);
+            $page = $this->fetchPowerOfSalePage($top, $next, $lastTs, $lastKey);
             $batch = $page['items'];
             $next = $page['next'];
 
@@ -76,7 +89,24 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 $processed++;
             }
 
-            $skip += $top;
+            // Update replication cursor based on last record in this batch
+            $tail = end($batch);
+            if (is_array($tail)) {
+                $newTsStr = Arr::get($tail, 'ModificationTimestamp');
+                $newKey = Arr::get($tail, 'ListingKey');
+                if (is_string($newTsStr) && is_string($newKey) && $newTsStr !== '' && $newKey !== '') {
+                    try {
+                        $lastTs = CarbonImmutable::parse($newTsStr);
+                        $lastKey = $newKey;
+                        $cursor->forceFill([
+                            'last_timestamp' => $lastTs,
+                            'last_key' => $lastKey,
+                        ])->save();
+                    } catch (\Throwable) {
+                        // ignore parse errors and continue
+                    }
+                }
+            }
             Cache::put('idx.import.pos', [
                 'status' => 'running',
                 'items_total' => $processed,
@@ -100,7 +130,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
      *
      * @return array{items: array<int, array<string, mixed>>, next: ?string}
      */
-    protected function fetchPowerOfSalePage(int $top, int $skip, ?string $nextUrl = null): array
+    protected function fetchPowerOfSalePage(int $top, ?string $nextUrl = null, ?CarbonImmutable $lastTimestamp = null, ?string $lastKey = null): array
     {
         // Base query components
         $select = ResoSelects::propertyPowerOfSaleImport();
@@ -133,10 +163,9 @@ class ImportIdxPowerOfSale implements ShouldQueue
             : $request
                 ->get('Property', [
                     '$select' => $select,
-                    '$filter' => $filter,
+                    '$filter' => $this->composeCursorFilter($filter, $lastTimestamp, (string) ($lastKey ?: '0')),
                     '$orderby' => 'ModificationTimestamp,ListingKey',
                     '$top' => $top,
-                    '$skip' => $skip,
                 ]);
 
         if ($response->failed()) {
@@ -152,6 +181,21 @@ class ImportIdxPowerOfSale implements ShouldQueue
             : null;
 
         return ['items' => $items, 'next' => $next];
+    }
+
+    private function composeCursorFilter(string $baseFilter, ?CarbonImmutable $lastTimestamp, string $lastKey): string
+    {
+        $ts = ($lastTimestamp ?? CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC'))->toIso8601String();
+        $escapedKey = str_replace("'", "''", $lastKey);
+
+        $cursor = sprintf(
+            '(ModificationTimestamp gt %s or (ModificationTimestamp eq %s and ListingKey gt \'%s\'))',
+            $ts,
+            $ts,
+            $escapedKey,
+        );
+
+        return trim($baseFilter) !== '' ? ($baseFilter.' and '.$cursor) : $cursor;
     }
 
     protected function upsertListingFromRaw(IdxClient $idx, ListingTransformer $transformer, array $raw): void

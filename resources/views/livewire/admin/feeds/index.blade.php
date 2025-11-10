@@ -4,6 +4,8 @@ use App\Models\Listing;
 use App\Jobs\ImportIdxPowerOfSale;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Jobs\ImportAllPowerOfSaleFeeds;
+use App\Jobs\BackfillListingMedia;
+use Illuminate\Support\Facades\Bus;
 use App\Services\Idx\IdxClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
@@ -156,7 +158,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             return;
         }
 
-        ImportAllPowerOfSaleFeeds::dispatch(50, 200);
+        // Chain to ensure the bulk import completes before media backfill runs
+        Bus::chain([
+            new ImportAllPowerOfSaleFeeds(50, 200),
+            new BackfillListingMedia(),
+        ])->dispatch();
         $this->notice = __('Import queued');
         session()->flash('notice', $this->notice);
         $this->redirect(route('admin.feeds.index'));

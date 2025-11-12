@@ -118,6 +118,8 @@ You can add or remove fields as needed, but avoid requesting entire records with
 - Status & time
   - `StandardStatus` → `listings.display_status` (and/or `status_code`)
   - `ModificationTimestamp` → `listings.modified_at`
+  - `ListingContractDate` (when provided) → `listings.listed_at`
+  - `DaysOnMarket` is still ingested but primarily used to infer `listed_at` when the contract date is missing; UI days-on-market values are computed dynamically from `listed_at` so they remain accurate between syncs.
 
 - Price
   - `ListPrice` → `listings.list_price`

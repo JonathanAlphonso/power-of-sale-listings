@@ -72,7 +72,7 @@ class ResoSelects
             'PropertyType', 'PropertySubType', 'ArchitecturalStyle', 'StreetNumber', 'StreetName', 'UnitNumber', 'City',
             'CityRegion', 'PostalCode', 'StateOrProvince', 'DaysOnMarket', 'BedroomsTotal', 'BathroomsTotalInteger',
             'LivingAreaRange', 'ListPrice', 'OriginalListPrice', 'ClosePrice', 'PreviousListPrice', 'PriceChangeTimestamp',
-            'ModificationTimestamp', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
+            'ModificationTimestamp', 'ListingContractDate', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
             'TransactionType',
         ]);
     }

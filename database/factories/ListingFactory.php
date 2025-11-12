@@ -31,6 +31,7 @@ class ListingFactory extends Factory
         $originalListPrice = max($originalListPrice, 0.00);
         $priceLow = max($listPrice - fake()->randomFloat(2, 1000, 50000), 0.00);
         $pricePerSquareFoot = $squareFeet > 0 ? round($listPrice / $squareFeet, 2) : null;
+        $daysOnMarket = fake()->numberBetween(0, 120);
 
         return [
             'source_id' => Source::factory(),
@@ -56,7 +57,7 @@ class ListingFactory extends Factory
             'province' => 'ON',
             'latitude' => fake()->latitude(42.0, 45.5),
             'longitude' => fake()->longitude(-83.0, -78.0),
-            'days_on_market' => fake()->numberBetween(0, 120),
+            'days_on_market' => $daysOnMarket,
             'bedrooms' => fake()->numberBetween(1, 5),
             'bedrooms_possible' => fake()->numberBetween(0, 2),
             'bathrooms' => fake()->randomFloat(1, 1, 5),
@@ -72,6 +73,7 @@ class ListingFactory extends Factory
             'is_address_public' => fake()->boolean(90),
             'parcel_id' => fake()->optional()->bothify('########-####'),
             'modified_at' => fake()->dateTimeBetween('-2 months', 'now'),
+            'listed_at' => now()->subDays($daysOnMarket),
             'ingestion_batch_id' => 'batch-'.Str::slug(fake()->uuid()),
             'payload' => [
                 'gid' => $boardCode,

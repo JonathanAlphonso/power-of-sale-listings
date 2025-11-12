@@ -1,4 +1,4 @@
-<x-layouts.site :title="__('Dashboard')">
+<x-layouts.app :title="__('Dashboard')">
     @php
         $formatCount = static fn (int|float|null $value): string => number_format((int) ($value ?? 0));
 
@@ -241,4 +241,4 @@
             </div>
         </div>
     </section>
-</x-layouts.site>
+</x-layouts.app>

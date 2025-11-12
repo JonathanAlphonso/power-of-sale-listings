@@ -10,6 +10,7 @@ use App\Services\Idx\IdxClient;
 use App\Services\Idx\ListingTransformer;
 use App\Services\Idx\RequestFactory;
 use App\Support\BoardCode;
+use App\Support\ListingDateResolver;
 use App\Support\ResoFilters;
 use App\Support\ResoSelects;
 use Carbon\CarbonImmutable;
@@ -70,6 +71,8 @@ class ImportIdxPowerOfSale implements ShouldQueue
             'started_at' => now()->toISOString(),
         ], now()->addMinutes(10));
 
+        $syncedAt = now()->toImmutable();
+
         do {
             $pages++;
             $page = $this->fetchPowerOfSalePage($top, $next, $lastTs, $lastKey);
@@ -85,7 +88,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
                     continue;
                 }
 
-                $this->upsertListingFromRaw($idx, $transformer, $raw);
+                $this->upsertListingFromRaw($idx, $transformer, $raw, $syncedAt);
                 $processed++;
             }
 
@@ -198,7 +201,30 @@ class ImportIdxPowerOfSale implements ShouldQueue
         return trim($baseFilter) !== '' ? ($baseFilter.' and '.$cursor) : $cursor;
     }
 
-    protected function upsertListingFromRaw(IdxClient $idx, ListingTransformer $transformer, array $raw): void
+    protected function resolveListedAt(array $raw, CarbonImmutable $reference): ?CarbonImmutable
+    {
+        $candidates = [
+            Arr::get($raw, 'ListingContractDate'),
+            Arr::get($raw, 'OriginalEntryTimestamp'),
+            Arr::get($raw, 'OnMarketDate'),
+            Arr::get($raw, 'ListDate'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (! is_string($candidate) || $candidate === '') {
+                continue;
+            }
+
+            $parsed = ListingDateResolver::parse($candidate);
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return ListingDateResolver::fromDaysOnMarket(Arr::get($raw, 'DaysOnMarket'), $reference);
+    }
+
+    protected function upsertListingFromRaw(IdxClient $idx, ListingTransformer $transformer, array $raw, CarbonImmutable $syncedAt): void
     {
         $key = Arr::get($raw, 'ListingKey');
         if (! is_string($key) || $key === '') {
@@ -263,6 +289,7 @@ class ImportIdxPowerOfSale implements ShouldQueue
             'bedrooms' => Arr::get($raw, 'BedroomsTotal'),
             'bathrooms' => Arr::get($raw, 'BathroomsTotalInteger'),
             'days_on_market' => Arr::get($raw, 'DaysOnMarket'),
+            'listed_at' => $this->resolveListedAt($raw, $syncedAt),
             'modified_at' => $attrs['modified_at'] ?? null,
             'payload' => $raw,
         ], fn ($v) => $v !== null));

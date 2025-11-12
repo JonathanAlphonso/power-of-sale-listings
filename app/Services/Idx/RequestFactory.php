@@ -12,7 +12,7 @@ class RequestFactory
     public function idx(): PendingRequest
     {
         return Http::retry(3, 500)
-            ->timeout(30)
+            ->timeout(60)
             ->baseUrl(rtrim((string) config('services.idx.base_uri', ''), '/'))
             ->withToken((string) config('services.idx.token', ''))
             ->acceptJson()
@@ -24,7 +24,7 @@ class RequestFactory
     public function vow(): PendingRequest
     {
         return Http::retry(3, 500)
-            ->timeout(30)
+            ->timeout(60)
             ->baseUrl(rtrim((string) config('services.vow.base_uri', ''), '/'))
             ->withToken((string) config('services.vow.token', ''))
             ->acceptJson()

@@ -3,6 +3,7 @@
 namespace App\Models\Concerns;
 
 use App\Models\Listing;
+use App\Support\ListingDateResolver;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -35,6 +36,17 @@ trait InteractsWithListingPayload
         $sourceId = self::resolveSourceId($payload, $context);
         $municipalityId = self::resolveMunicipalityId($payload, $context);
 
+        $daysOnMarket = self::intOrNull($payload['daysOnMarket'] ?? null);
+        $listedDateCandidate = $payload['listedAt']
+            ?? $payload['listed_at']
+            ?? $payload['listDate']
+            ?? null;
+
+        $explicitListedAt = null;
+        if (is_string($listedDateCandidate) && $listedDateCandidate !== '') {
+            $explicitListedAt = ListingDateResolver::parse($listedDateCandidate);
+        }
+
         $attributes = [
             'source_id' => $sourceId,
             'municipality_id' => $municipalityId,
@@ -58,7 +70,7 @@ trait InteractsWithListingPayload
             'province' => $payload['province'] ?? 'ON',
             'latitude' => self::floatOrNull($payload['latitude'] ?? null),
             'longitude' => self::floatOrNull($payload['longitude'] ?? null),
-            'days_on_market' => self::intOrNull($payload['daysOnMarket'] ?? null),
+            'days_on_market' => $daysOnMarket,
             'bedrooms' => self::intOrNull($payload['bedrooms'] ?? null),
             'bedrooms_possible' => self::intOrNull($payload['bedroomsPossible'] ?? null),
             'bathrooms' => self::floatOrNull($payload['bathrooms'] ?? null),
@@ -78,6 +90,8 @@ trait InteractsWithListingPayload
             'modified_at' => isset($payload['modified'])
                 ? self::carbonOrNull((string) $payload['modified'])
                 : null,
+            'listed_at' => $explicitListedAt
+                ?? ListingDateResolver::fromDaysOnMarket($daysOnMarket),
             'payload' => $payload,
             'ingestion_batch_id' => $context['ingestion_batch_id'] ?? null,
         ];

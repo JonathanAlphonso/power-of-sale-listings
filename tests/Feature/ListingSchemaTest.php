@@ -53,6 +53,7 @@ it('creates the listings table with expected columns', function (): void {
         'is_address_public',
         'parcel_id',
         'modified_at',
+        'listed_at',
         'payload',
         'ingestion_batch_id',
         'created_at',

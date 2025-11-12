@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class Listing extends Model
@@ -55,6 +56,7 @@ class Listing extends Model
         'square_feet_text',
         'list_price',
         'original_list_price',
+        'listed_at',
         'price',
         'price_low',
         'price_per_square_foot',
@@ -83,12 +85,32 @@ class Listing extends Model
             'modified_at' => 'datetime',
             'original_list_price' => 'decimal:2',
             'payload' => 'array',
+            'listed_at' => 'datetime',
             'price' => 'decimal:2',
             'price_low' => 'decimal:2',
             'price_per_square_foot' => 'decimal:2',
             'suppressed_at' => 'datetime',
             'suppression_expires_at' => 'datetime',
         ];
+    }
+
+    public function getDaysOnMarketAttribute($value): ?int
+    {
+        if ($this->listed_at === null) {
+            return $value !== null ? (int) $value : null;
+        }
+
+        $listedAt = $this->listed_at instanceof Carbon
+            ? $this->listed_at
+            : Carbon::parse((string) $this->listed_at);
+
+        $days = $listedAt->diffInDays(Carbon::now(), false);
+
+        if ($days < 0) {
+            return 0;
+        }
+
+        return $days;
     }
 
     public function media(): HasMany

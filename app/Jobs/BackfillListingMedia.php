@@ -4,12 +4,13 @@ namespace App\Jobs;
 
 use App\Models\Listing;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class BackfillListingMedia implements ShouldQueue
+class BackfillListingMedia implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -21,6 +22,14 @@ class BackfillListingMedia implements ShouldQueue
         public string $mediaQueue = 'media',
         public int $chunk = 500,
     ) {}
+
+    /**
+     * Ensure only one backfill job (any variant) is queued or running.
+     */
+    public function uniqueId(): string
+    {
+        return 'listing-media-backfill';
+    }
 
     /**
      * Prevent overlapping media backfills which could enqueue duplicates.

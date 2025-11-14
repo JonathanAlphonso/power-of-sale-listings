@@ -104,12 +104,12 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         Gate::authorize('purge', Listing::class);
 
-        // Delete in chunks to respect FKs and avoid long-running queries.
-        Listing::query()
+        // Hard delete in chunks so FK cascades remove related media/history rows.
+        Listing::withTrashed()
             ->select('id')
             ->orderBy('id')
             ->chunkById(500, function (\Illuminate\Support\Collection $chunk): void {
-                Listing::query()->whereIn('id', $chunk->pluck('id'))->delete();
+                Listing::withTrashed()->whereIn('id', $chunk->pluck('id'))->forceDelete();
             });
 
         $this->confirmingPurge = false;

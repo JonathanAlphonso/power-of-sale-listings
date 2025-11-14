@@ -44,6 +44,11 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
     public function handle(IdxClient $idx): void
     {
+        logger()->info('import_idx_pos.started', [
+            'page_size' => $this->pageSize,
+            'max_pages' => $this->maxPages,
+        ]);
+
         /** @var ListingTransformer $transformer */
         $transformer = app(ListingTransformer::class);
 
@@ -64,6 +69,11 @@ class ImportIdxPowerOfSale implements ShouldQueue
             : CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC');
         $lastKey = is_string($cursor->last_key) && $cursor->last_key !== '' ? $cursor->last_key : '0';
 
+        logger()->info('import_idx_pos.cursor', [
+            'last_timestamp' => $lastTs->toIso8601String(),
+            'last_key' => $lastKey,
+        ]);
+
         Cache::put('idx.import.pos', [
             'status' => 'running',
             'items_total' => 0,
@@ -75,11 +85,20 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
         do {
             $pages++;
+            logger()->info('import_idx_pos.fetching_page', ['page' => $pages]);
+
             $page = $this->fetchPowerOfSalePage($top, $next, $lastTs, $lastKey);
             $batch = $page['items'];
             $next = $page['next'];
 
+            logger()->info('import_idx_pos.page_fetched', [
+                'page' => $pages,
+                'records' => count($batch),
+                'has_next' => $next !== null,
+            ]);
+
             if ($batch === []) {
+                logger()->info('import_idx_pos.empty_batch', ['page' => $pages]);
                 break;
             }
 
@@ -88,8 +107,15 @@ class ImportIdxPowerOfSale implements ShouldQueue
                     continue;
                 }
 
-                $this->upsertListingFromRaw($idx, $transformer, $raw, $syncedAt);
-                $processed++;
+                try {
+                    $this->upsertListingFromRaw($idx, $transformer, $raw, $syncedAt);
+                    $processed++;
+                } catch (\Throwable $e) {
+                    logger()->warning('import_idx_pos.record_failed', [
+                        'listing_key' => Arr::get($raw, 'ListingKey'),
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             // Update replication cursor based on last record in this batch
@@ -99,14 +125,30 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 $newKey = Arr::get($tail, 'ListingKey');
                 if (is_string($newTsStr) && is_string($newKey) && $newTsStr !== '' && $newKey !== '') {
                     try {
-                        $lastTs = CarbonImmutable::parse($newTsStr);
+                        $candidate = CarbonImmutable::parse($newTsStr)->utc();
+                        $nowUtc = CarbonImmutable::now('UTC');
+                        if ($candidate->isFuture()) {
+                            $candidate = $nowUtc; // clamp: never advance into the future
+                        }
+                        if ($candidate->lt($lastTs)) {
+                            $candidate = $lastTs; // monotonic non-decreasing
+                        }
+
+                        $lastTs = $candidate;
                         $lastKey = $newKey;
                         $cursor->forceFill([
                             'last_timestamp' => $lastTs,
                             'last_key' => $lastKey,
                         ])->save();
-                    } catch (\Throwable) {
-                        // ignore parse errors and continue
+
+                        logger()->info('import_idx_pos.cursor_updated', [
+                            'last_timestamp' => $lastTs->toIso8601String(),
+                            'last_key' => $lastKey,
+                        ]);
+                    } catch (\Throwable $e) {
+                        logger()->warning('import_idx_pos.cursor_update_failed', [
+                            'error' => $e->getMessage(),
+                        ]);
                     }
                 }
             }
@@ -117,6 +159,11 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 'last_at' => now()->toISOString(),
             ], now()->addMinutes(10));
         } while ((count($batch) === $top || $next !== null) && $pages < $this->maxPages);
+
+        logger()->info('import_idx_pos.completed', [
+            'total_records' => $processed,
+            'total_pages' => $pages,
+        ]);
 
         Cache::put('idx.import.pos', [
             'status' => 'completed',
@@ -172,11 +219,50 @@ class ImportIdxPowerOfSale implements ShouldQueue
                 ]);
 
         if ($response->failed()) {
+            try {
+                logger()->warning('IDX import page failed', ['status' => $response->status()]);
+            } catch (\Throwable) {
+            }
+
             return ['items' => [], 'next' => null];
         }
 
         $items = $response->json('value');
         $root = $response->json();
+
+        // Safety: if first page (no nextUrl) returns zero items with the cursor filter,
+        // retry once without the cursor portion to ensure we pull available PoS data.
+        if ($nextUrl === null && (! is_array($items) || count($items) === 0)) {
+            try {
+                logger()->info('IDX import fallback: retrying without cursor filter');
+            } catch (\Throwable) {
+            }
+            $fallback = $request->get('Property', [
+                '$select' => $select,
+                '$filter' => $filter,
+                '$orderby' => 'ModificationTimestamp,ListingKey',
+                '$top' => $top,
+            ]);
+            if ($fallback->successful()) {
+                $items = $fallback->json('value');
+                $root = $fallback->json();
+                try {
+                    $count = is_array($items) ? count($items) : 0;
+                    logger()->info('IDX import fallback page ok', ['count' => $count]);
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        try {
+            $count = is_array($items) ? count($items) : 0;
+            logger()->info('IDX import page ok', [
+                'status' => $response->status(),
+                'count' => $count,
+                'has_next' => is_array($root) && isset($root['@odata.nextLink']),
+            ]);
+        } catch (\Throwable) {
+        }
 
         $items = is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
         $next = (is_array($root) && isset($root['@odata.nextLink']) && is_string($root['@odata.nextLink']) && $root['@odata.nextLink'] !== '')
@@ -188,7 +274,13 @@ class ImportIdxPowerOfSale implements ShouldQueue
 
     private function composeCursorFilter(string $baseFilter, ?CarbonImmutable $lastTimestamp, string $lastKey): string
     {
-        $ts = ($lastTimestamp ?? CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC'))->toIso8601String();
+        $tsObj = ($lastTimestamp ?? CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC'))->utc();
+        $nowUtc = CarbonImmutable::now('UTC');
+        // Never compose a filter with a future timestamp
+        if ($tsObj->isFuture()) {
+            $tsObj = $nowUtc;
+        }
+        $ts = $tsObj->toIso8601String();
         $escapedKey = str_replace("'", "''", $lastKey);
 
         $cursor = sprintf(
@@ -265,21 +357,37 @@ class ImportIdxPowerOfSale implements ShouldQueue
             $listing->external_id = $key;
         }
 
+        // Ensure NOT NULL columns are always populated
+        $listing->listing_key = $key;
+
         if (method_exists($listing, 'trashed') && $listing->trashed()) {
             $listing->restore();
         }
 
+        $standardStatus = Arr::get($raw, 'StandardStatus');
+        $contractStatus = Arr::get($raw, 'ContractStatus');
+        $availability = (is_string($standardStatus) && strtolower($standardStatus) === 'active')
+            ? 'Available'
+            : ((is_string($contractStatus) && strtolower($contractStatus) === 'available') ? 'Available' : 'Unavailable');
+
+        $publicRemarks = Arr::get($raw, 'PublicRemarks');
+
         $listing->fill(array_filter([
+            'listing_key' => $key,
             'municipality_id' => $municipalityId,
             'board_code' => $boardCode,
             'mls_number' => Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key,
             'display_status' => $attrs['status'] ?? null,
             'status_code' => $attrs['status'] ?? null,
+            'transaction_type' => (string) (Arr::get($raw, 'TransactionType') ?? 'For Sale'),
+            'availability' => $availability,
             'property_type' => $attrs['property_type'] ?? null,
             'property_style' => $attrs['property_sub_type'] ?? null,
             'street_number' => Arr::get($raw, 'StreetNumber'),
             'street_name' => Arr::get($raw, 'StreetName'),
             'street_address' => $attrs['address'] ?? null,
+            'public_remarks' => is_string($publicRemarks) ? trim((string) $publicRemarks) : '',
+            'public_remarks_full' => is_string($publicRemarks) ? (string) $publicRemarks : '',
             'unit_number' => Arr::get($raw, 'UnitNumber'),
             'city' => $attrs['city'] ?? null,
             'province' => $province,

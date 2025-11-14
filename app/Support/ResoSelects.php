@@ -36,15 +36,14 @@ class ResoSelects
 
     public static function propertyPowerOfSaleCard(): string
     {
+        // Keep this set minimal and portable across boards to avoid 400s for unknown fields.
         return implode(',', [
             'ListingKey',
             'ListingId',
             'OriginatingSystemName',
             'UnparsedAddress',
             'StreetNumber',
-            'StreetDirPrefix',
             'StreetName',
-            'StreetSuffix',
             'UnitNumber',
             'City',
             'StateOrProvince',
@@ -67,12 +66,32 @@ class ResoSelects
 
     public static function propertyPowerOfSaleImport(): string
     {
+        // Select only fields the transformer and import actually use to reduce
+        // chances of API errors on boards that omit certain fields.
         return implode(',', [
-            'ListingKey', 'OriginatingSystemName', 'ListingId', 'StandardStatus', 'MlsStatus', 'ContractStatus',
-            'PropertyType', 'PropertySubType', 'ArchitecturalStyle', 'StreetNumber', 'StreetName', 'UnitNumber', 'City',
-            'CityRegion', 'PostalCode', 'StateOrProvince', 'DaysOnMarket', 'BedroomsTotal', 'BathroomsTotalInteger',
-            'LivingAreaRange', 'ListPrice', 'OriginalListPrice', 'ClosePrice', 'PreviousListPrice', 'PriceChangeTimestamp',
-            'ModificationTimestamp', 'ListingContractDate', 'UnparsedAddress', 'InternetAddressDisplayYN', 'ParcelNumber', 'PublicRemarks',
+            'ListingKey',
+            'OriginatingSystemName',
+            'ListingId',
+            'StandardStatus',
+            'MlsStatus',
+            'ContractStatus',
+            'PropertyType',
+            'PropertySubType',
+            'StreetNumber',
+            'StreetName',
+            'UnitNumber',
+            'City',
+            'PostalCode',
+            'StateOrProvince',
+            'DaysOnMarket',
+            'BedroomsTotal',
+            'BathroomsTotalInteger',
+            'ListPrice',
+            'OriginalListPrice',
+            'ModificationTimestamp',
+            'ListingContractDate',
+            'UnparsedAddress',
+            'PublicRemarks',
             'TransactionType',
         ]);
     }

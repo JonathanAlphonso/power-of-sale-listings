@@ -1,13 +1,13 @@
 <?php
 
-use App\Models\Listing;
+use App\Jobs\BackfillListingMedia;
+use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Jobs\ImportIdxPowerOfSale;
 use App\Jobs\ImportVowPowerOfSale;
-use App\Jobs\ImportAllPowerOfSaleFeeds;
-use App\Jobs\BackfillListingMedia;
-use Illuminate\Support\Facades\Bus;
+use App\Models\Listing;
 use App\Services\Idx\IdxClient;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -16,14 +16,20 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 
-new #[Layout('components.layouts.app')] class extends Component {
+new #[Layout('components.layouts.app')] class extends Component
+{
     public bool $tested = false;
+
     public bool $connected = false;
+
     #[Url]
     public string $notice = '';
+
     /** @var array<int, array<string, mixed>> */
     public array $preview = [];
+
     public ?int $requestMs = null;
+
     public int $previewImageCount = 0;
 
     /** @var array{configured: bool, base: string, tokenSet: bool, status: int|null, items: int|null, size: int|null, firstKeys: array<int,string>, error: string|null, checkedAt: string|null, fallback?: bool} */
@@ -109,43 +115,142 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function importAllPowerOfSale(): void
     {
         // Queue the import to avoid request timeouts.
-        ImportIdxPowerOfSale::dispatch(50, 200);
+        try {
+            ImportIdxPowerOfSale::dispatch(50, 200);
+            logger()->info('feeds.import_all_idx_queued', [
+                'ts' => now()->toIso8601String(),
+                'queue' => (string) config('queue.default'),
+            ]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importAllPowerOfSale',
+                'queued' => true,
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('feeds.import_all_idx_failed_to_queue', ['error' => $e->getMessage()]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importAllPowerOfSale',
+                'queued' => false,
+                'error' => $e->getMessage(),
+            ]);
+        }
         $this->notice = __('IDX import queued');
-        session()->flash('notice', $this->notice);
-        $this->redirect(route('admin.feeds.index'));
+        $this->dispatch('feeds:notice', notice: $this->notice);
     }
 
     public function importVow(): void
     {
-        ImportVowPowerOfSale::dispatch(50, 200);
+        try {
+            ImportVowPowerOfSale::dispatch(50, 200);
+            logger()->info('feeds.import_all_vow_queued', [
+                'ts' => now()->toIso8601String(),
+                'queue' => (string) config('queue.default'),
+            ]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importVow',
+                'queued' => true,
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('feeds.import_all_vow_failed_to_queue', ['error' => $e->getMessage()]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importVow',
+                'queued' => false,
+                'error' => $e->getMessage(),
+            ]);
+        }
         $this->notice = __('VOW import queued');
-        session()->flash('notice', $this->notice);
-        $this->redirect(route('admin.feeds.index'));
+        $this->dispatch('feeds:notice', notice: $this->notice);
     }
 
     public function importBoth(): void
     {
-        // Skip if already running
-        $progress = (array) Cache::get('idx.import.pos', []);
-        if (($progress['status'] ?? null) === 'running') {
-            $this->notice = __('Import already running');
-            session()->flash('notice', $this->notice);
-            $this->redirect(route('admin.feeds.index'));
+        // Check for recent dispatch to prevent race condition
+        if (Cache::has('idx.import.pos.dispatching')) {
+            $this->notice = __('Import is being queued, please wait...');
+            logger()->info('feeds.import_both_blocked_dispatching', [
+                'ts' => now()->toIso8601String(),
+            ]);
+            $this->dispatch('feeds:notice', notice: $this->notice);
+
             return;
         }
 
-        // Skip if already queued in database driver
+        // Skip if already running, unless the progress appears stale (no queued jobs and last_at is old)
+        $debug = [
+            'ts' => now()->toIso8601String(),
+            'where' => 'importBoth',
+            'queue' => (string) config('queue.default'),
+        ];
+        $progress = (array) Cache::get('idx.import.pos', []);
+        if (($progress['status'] ?? null) === 'running') {
+            $lastAtIso = (string) ($progress['last_at'] ?? $progress['started_at'] ?? '');
+            $lastAtTs = null;
+            try {
+                $lastAtTs = $lastAtIso !== '' ? \Carbon\CarbonImmutable::parse($lastAtIso) : null;
+            } catch (\Throwable) {
+            }
+
+            $hasActiveJobs = false;
+            $matchCount = null;
+            $totalCount = null;
+            try {
+                if ((string) config('queue.default') === 'database') {
+                    $table = (string) config('queue.connections.database.table', 'jobs');
+                    $matchCount = (int) DB::table($table)
+                        ->where(function ($q) {
+                            $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
+                                ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                                ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                        })
+                        ->count();
+                    $hasActiveJobs = $matchCount > 0;
+                    $totalCount = (int) DB::table($table)->count();
+                }
+            } catch (\Throwable) {
+            }
+
+            // Consider it stale only if:
+            // - No active jobs in queue AND
+            // - Either no timestamp exists OR the timestamp is old (> 2 min)
+            // But if there ARE active jobs, never consider it stale (block the import)
+            $stale = ($hasActiveJobs === false) && ($lastAtTs !== null && $lastAtTs->lt(now()->subMinutes(2)));
+            $debug['progress'] = $progress;
+            $debug['hasActiveJobs'] = $hasActiveJobs;
+            $debug['matchCount'] = $matchCount;
+            $debug['totalCount'] = $totalCount;
+            $debug['stale'] = $stale;
+
+            if (! $stale) {
+                $this->notice = __('Import already running');
+                logger()->info('feeds.import_both_blocked_running', $debug);
+                $this->dispatch('feeds:debug', debug: $debug);
+                $this->dispatch('feeds:notice', notice: $this->notice);
+
+                return;
+            }
+
+            // Clear stale progress and continue
+            Cache::forget('idx.import.pos');
+            logger()->info('feeds.import_both_cleared_stale', $debug);
+            $this->dispatch('feeds:debug', debug: $debug);
+        }
+
+        // Skip if already queued in database driver (only consider unreserved rows)
         $alreadyQueued = false;
+        $matchQueued = null;
+        $totalQueued = null;
         try {
             if ((string) config('queue.default') === 'database') {
                 $table = (string) config('queue.connections.database.table', 'jobs');
-                $alreadyQueued = DB::table($table)
+                $matchQueued = (int) DB::table($table)
+                    ->whereNull('reserved_at')
                     ->where(function ($q) {
                         $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
-                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
-                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                            ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
                     })
-                    ->exists();
+                    ->count();
+                $alreadyQueued = $matchQueued > 0;
+                $totalQueued = (int) DB::table($table)->count();
             }
         } catch (\Throwable) {
             // ignore
@@ -153,19 +258,49 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         if ($alreadyQueued) {
             $this->notice = __('Import already queued');
-            session()->flash('notice', $this->notice);
-            $this->redirect(route('admin.feeds.index'));
+            logger()->info('feeds.import_both_blocked_already_queued', [
+                'ts' => now()->toIso8601String(),
+                'queue' => (string) config('queue.default'),
+                'matchQueued' => $matchQueued,
+                'totalQueued' => $totalQueued,
+            ]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importBoth',
+                'alreadyQueued' => true,
+                'matchQueued' => $matchQueued,
+                'totalQueued' => $totalQueued,
+            ]);
+            $this->dispatch('feeds:notice', notice: $this->notice);
+
             return;
         }
 
         // Chain to ensure the bulk import completes before media backfill runs
-        Bus::chain([
-            new ImportAllPowerOfSaleFeeds(50, 200),
-            new BackfillListingMedia(),
-        ])->dispatch();
+        try {
+            Bus::chain([
+                new ImportAllPowerOfSaleFeeds(50, 200),
+                new BackfillListingMedia,
+            ])->dispatch();
+
+            // Set a short-lived cache flag to prevent race condition:
+            // The job may not be in the DB yet when the page reloads after redirect
+            Cache::put('idx.import.pos.dispatching', true, now()->addSeconds(5));
+
+            $debug['dispatched'] = true;
+            logger()->info('feeds.import_both_dispatched', $debug);
+            $this->dispatch('feeds:debug', debug: $debug);
+        } catch (\Throwable $e) {
+            $debug['dispatched'] = false;
+            $debug['error'] = $e->getMessage();
+            logger()->error('feeds.import_both_dispatch_failed', $debug);
+            $this->dispatch('feeds:debug', debug: $debug);
+            $this->notice = __('Dispatch failed: :msg', ['msg' => $e->getMessage()]);
+            $this->dispatch('feeds:notice', notice: $this->notice);
+
+            return;
+        }
         $this->notice = __('Import queued');
-        session()->flash('notice', $this->notice);
-        $this->redirect(route('admin.feeds.index'));
+        $this->dispatch('feeds:notice', notice: $this->notice);
     }
 
     #[Computed]
@@ -305,11 +440,11 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function clearHttpMetrics(): void
     {
         foreach (['property', 'media'] as $scope) {
-            foreach (['total','success','429','5xx','other'] as $key) {
+            foreach (['total', 'success', '429', '5xx', 'other'] as $key) {
                 Cache::forget("idx.metrics.{$scope}.{$key}");
             }
         }
-        foreach (['window_started','last_status','last_error','last_at'] as $key) {
+        foreach (['window_started', 'last_status', 'last_error', 'last_at'] as $key) {
             Cache::forget("idx.metrics.{$key}");
         }
         $this->notice = __('HTTP metrics cleared.');
@@ -346,11 +481,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 $queueDetails['table'] = $table;
 
                 $matching = DB::table($table)
-                    ->select('id','queue','attempts','reserved_at','available_at','created_at','payload')
+                    ->select('id', 'queue', 'attempts', 'reserved_at', 'available_at', 'created_at', 'payload')
                     ->where(function ($q) {
                         $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
-                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
-                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                            ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
                     })
                     ->orderBy('id')
                     ->get();
@@ -376,9 +511,13 @@ new #[Layout('components.layouts.app')] class extends Component {
                 $queueDetails['jobs'] = collect($matching)->take(5)->map(function ($j) use ($toIso) {
                     $type = 'unknown';
                     $payload = (string) ($j->payload ?? '');
-                    if (str_contains($payload, 'ImportAllPowerOfSaleFeeds')) { $type = 'ImportAllPowerOfSaleFeeds'; }
-                    elseif (str_contains($payload, 'ImportIdxPowerOfSale')) { $type = 'ImportIdxPowerOfSale'; }
-                    elseif (str_contains($payload, 'ImportVowPowerOfSale')) { $type = 'ImportVowPowerOfSale'; }
+                    if (str_contains($payload, 'ImportAllPowerOfSaleFeeds')) {
+                        $type = 'ImportAllPowerOfSaleFeeds';
+                    } elseif (str_contains($payload, 'ImportIdxPowerOfSale')) {
+                        $type = 'ImportIdxPowerOfSale';
+                    } elseif (str_contains($payload, 'ImportVowPowerOfSale')) {
+                        $type = 'ImportVowPowerOfSale';
+                    }
 
                     return [
                         'id' => (int) $j->id,
@@ -423,8 +562,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                     ->whereNull('reserved_at')
                     ->where(function ($q) {
                         $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
-                          ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
-                          ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                            ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
+                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
                     })
                     ->delete();
             }
@@ -467,18 +606,19 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         if (! $check['configured']) {
             $check['error'] = 'Missing base URI or token';
+
             return $check;
         }
 
         $base = rtrim((string) $check['base'], '/');
         $token = (string) config("services.{$name}.token");
 
-        $filter = "PublicRemarks ne null and "
-            . "startswith(TransactionType,'For Sale') and ("
-            . "contains(PublicRemarks,'Power of Sale') or "
-            . "contains(PublicRemarks,'power of sale') or "
-            . "contains(PublicRemarks,'POWER OF SALE') or "
-            . "contains(PublicRemarks,'Power Of Sale'))";
+        $filter = 'PublicRemarks ne null and '
+            ."startswith(TransactionType,'For Sale') and ("
+            ."contains(PublicRemarks,'Power of Sale') or "
+            ."contains(PublicRemarks,'power of sale') or "
+            ."contains(PublicRemarks,'POWER OF SALE') or "
+            ."contains(PublicRemarks,'Power Of Sale'))";
 
         $query = [
             '$top' => 30,
@@ -532,7 +672,6 @@ new #[Layout('components.layouts.app')] class extends Component {
                 x-show="visible"
                 x-init="setTimeout(() => visible = false, 10000)"
                 data-min-visible-ms="10000"
-                data-ui-notice="{{ $__uiNotice }}"
                 class="ring-2 ring-emerald-500/30"
                 role="status"
             >
@@ -723,12 +862,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                         {{ __('Importing…') }}
                     </span>
                 </flux:button>
-                <flux:button icon="arrows-right-left" wire:click="importBoth" wire:loading.attr="disabled" wire:target="importBoth">
+                <flux:button 
+                    icon="arrows-right-left" 
+                    wire:click="importBoth" 
+                    wire:loading.attr="disabled" 
+                    wire:target="importBoth"
+                    wire:offline.attr="disabled"
+                >
                     <span wire:loading.remove wire:target="importBoth">{{ __('Import Both Now') }}</span>
                     <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
                         <flux:icon name="arrow-path" class="animate-spin" />
                         {{ __('Importing…') }}
                     </span>
+                    <span wire:offline class="text-red-500">{{ __('Offline') }}</span>
                 </flux:button>
                 <flux:button variant="outline" icon="x-mark" wire:click="cancelQueuedImports" wire:loading.attr="disabled" wire:target="cancelQueuedImports">
                     <span wire:loading.remove wire:target="cancelQueuedImports">{{ __('Cancel queued imports') }}</span>
@@ -740,25 +886,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
                 @php($__import = $this->importStatus)
                 <div class="basis-full"></div>
-                <flux:callout
-                    variant="neutral"
-                    icon="information-circle"
-                    class="min-w-[16rem]"
-                    role="status"
-                >
-                    <div class="flex items-center gap-2">
-                        <span class="font-semibold">{{ __('Import status:') }}</span>
-                        @if ($__import['running'])
-                            <span class="text-emerald-600 dark:text-emerald-400">{{ __('Running') }}</span>
-                            <span class="text-zinc-500">—</span>
-                            <span>{{ number_format($__import['items']) }} {{ __('items') }}, {{ number_format($__import['pages']) }} {{ __('pages') }}</span>
-                        @elseif ($__import['pending'])
-                            <span class="text-amber-600 dark:text-amber-400">{{ __('Queued') }}</span>
-                        @else
-                            <span class="text-zinc-600 dark:text-zinc-400">{{ __('Idle') }}</span>
-                        @endif
-                    </div>
-                    @php($__q = $__import['queue'])
+                @php($__q = $__import['queue'])
                     <div class="mt-2 grid gap-1 text-xs text-zinc-600 dark:text-zinc-400">
                         <div>{{ __('Driver: :d', ['d' => $__q['driver'] ?? '—']) }}</div>
                         @if((string)($__q['driver'] ?? '') === 'database')
@@ -795,23 +923,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </span>
                         </flux:button>
                     </div>
-                </flux:callout>
-                @php($__uiNoticeInline = $notice !== '' ? $notice : (string) session('notice', ''))
-                @if (! empty($__uiNoticeInline))
-                    <div class="basis-full">
-                        <flux:callout
-                            variant="neutral"
-                            icon="information-circle"
-                            x-data="{ visible: true }"
-                            x-show="visible"
-                            x-init="setTimeout(() => visible = false, 15000)"
-                            data-min-visible-ms="15000"
-                            data-ui-notice="{{ $__uiNoticeInline }}"
-                        >
-                            {{ $__uiNoticeInline }}
-                        </flux:callout>
-                    </div>
-                @endif
+                
+                {{-- Removed duplicate inline notice to avoid double messages --}}
             </div>
         </div>
 
@@ -991,3 +1104,30 @@ new #[Layout('components.layouts.app')] class extends Component {
         @endif
     </div>
 </section>
+
+<script>
+    document.addEventListener('livewire:init', function () {
+        try {
+            window.addEventListener('feeds:debug', function (e) {
+                const d = e.detail && (e.detail.debug ?? e.detail);
+                console.debug('[feeds:debug]', d);
+            });
+            window.addEventListener('feeds:notice', function (e) {
+                const n = e.detail && (e.detail.notice ?? e.detail);
+                console.info('[feeds:notice]', n);
+            });
+
+            Livewire.hook('request', ({ payload }) => {
+                try { console.debug('[livewire:request]', payload?.fingerprint?.name, payload); } catch (_) {}
+            });
+            Livewire.hook('response', ({ status, response }) => {
+                try { console.debug('[livewire:response]', status, response?.effects?.dispatches || []); } catch (_) {}
+            });
+            Livewire.hook('message.failed', (message) => {
+                try { console.error('[livewire:message.failed]', message); } catch (_) {}
+            });
+        } catch (err) {
+            try { console.error('[feeds:debug-init-failed]', err); } catch (_) {}
+        }
+    });
+</script>

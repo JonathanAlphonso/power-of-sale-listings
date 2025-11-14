@@ -95,7 +95,7 @@ class IdxClient
     private function connection(): PendingRequest
     {
         return Http::retry(2, 200)
-            ->timeout(8)
+            ->timeout(30) // Increased from 8 to 30 seconds for complex queries
             ->baseUrl(rtrim($this->baseUri(), '/'))
             ->withToken($this->token())
             ->acceptJson()
@@ -212,12 +212,27 @@ class IdxClient
 
             $filter = ResoFilters::powerOfSale();
 
-            // Keep this request snappy to avoid overall page timeouts (align with runbook ~6s)
-            $response = $this->connection()->retry(1, 200)->timeout(6)->get('Property', [
+            logger()->info('idx.pos_query_start', [
+                'limit' => $limit,
+                'filter_length' => strlen($filter),
+            ]);
+
+            $start = microtime(true);
+
+            // Increased timeout for complex Power of Sale query
+            $response = $this->connection()->retry(1, 200)->timeout(30)->get('Property', [
                 '$select' => $select,
                 '$filter' => $filter,
                 '$top' => $limit,
                 '$orderby' => 'ModificationTimestamp,ListingKey',
+            ]);
+
+            $duration = round((microtime(true) - $start) * 1000);
+
+            logger()->info('idx.pos_query_complete', [
+                'status' => $response->status(),
+                'duration_ms' => $duration,
+                'body_length' => strlen($response->body()),
             ]);
 
             try {
@@ -227,6 +242,11 @@ class IdxClient
             }
 
             if ($response->failed()) {
+                logger()->warning('idx.pos_query_failed', [
+                    'status' => $response->status(),
+                    'duration_ms' => $duration,
+                ]);
+
                 return [];
             }
 
@@ -259,6 +279,12 @@ class IdxClient
 
             return $transformed;
         } catch (Throwable $e) {
+            logger()->error('idx.pos_query_exception', [
+                'error' => $e->getMessage(),
+                'type' => get_class($e),
+                'limit' => $limit,
+            ]);
+
             try {
                 $this->recordHttpMetrics('property', null, $e->getMessage());
             } catch (\Throwable) {

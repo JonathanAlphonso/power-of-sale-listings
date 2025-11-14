@@ -1,0 +1,320 @@
+
+   PASS  Tests\Unit\Documentation\DocumentationTest
+  ✓ readme documents migration, seeding, and admin workspace commands    0.41s  
+  ✓ runbook highlights admin urls and database commands
+
+   PASS  Tests\Unit\ExampleTest
+  ✓ that true is true                                                    0.21s  
+
+   PASS  Tests\Unit\ListingDaysOnMarketTest
+  ✓ it derives days on market from the listed_at timestamp               8.38s  
+  ✓ it falls back to the stored value when listed_at is missing          0.18s  
+  ✓ it never returns negative values when listed_at is in the future     0.22s  
+
+   PASS  Tests\Unit\Models\ListingMediaPublicUrlTest
+  ✓ it returns storage url when stored_path is present                   0.89s  
+  ✓ it falls back to preview then url when not stored                    0.19s  
+
+   PASS  Tests\Unit\Policies\ListingPolicyTest
+  ✓ it allows admins to administer listings                              0.42s  
+  ✓ it prevents subscribers from administering listings                  0.22s  
+  ✓ it denies suspended admins from administering listings               0.18s  
+
+   PASS  Tests\Unit\Policies\UserPolicyTest
+  ✓ it allows admins to manage user records                              0.19s  
+  ✓ it prevents subscribers from administering user records              0.18s  
+  ✓ it prevents administrators from deleting or suspending themselves    0.18s  
+  ✓ it denies suspended admins from managing user records                0.18s  
+
+   PASS  Tests\Feature\Admin\ListingsPageTest
+  ✓ guests are redirected from the listings index                        0.82s  
+  ✓ authenticated users can browse, filter, and preview listings        33.37s  
+  ✓ admins can suppress and unsuppress listings with audit logging       4.69s  
+  ✓ admins can purge all listings                                        2.58s  
+  ✓ admins can generate fake listings for testing                        2.10s  
+
+   PASS  Tests\Feature\Auth\AuthenticationTest
+  ✓ login screen can be rendered                                         1.96s  
+  ✓ users can authenticate using the login screen                        1.31s  
+  ✓ admins are redirected to the dashboard after login                   1.07s  
+  ✓ users can not authenticate with invalid password                     1.31s  
+  ✓ suspended users can not authenticate                                 1.28s  
+  ✓ users forced to rotate their password receive a reset alert on failed login 1.23s  
+  ✓ users with two factor enabled are redirected to two factor challenge 1.14s  
+  ✓ users can logout                                                     0.22s  
+
+   PASS  Tests\Feature\Auth\EmailVerificationTest
+  ✓ email verification screen can be rendered                            0.50s  
+  ✓ email can be verified                                                0.37s  
+  ✓ email is not verified with invalid hash                              0.34s  
+  ✓ already verified user visiting verification link is redirected without firing event again 0.23s  
+
+   PASS  Tests\Feature\Auth\PasswordConfirmationTest
+  ✓ confirm password screen can be rendered                              0.80s  
+
+   PASS  Tests\Feature\Auth\PasswordResetTest
+  ✓ reset password link screen can be rendered                           0.68s  
+  ✓ reset password link can be requested                                 1.01s  
+  ✓ reset password screen can be rendered                                1.26s  
+  ✓ password can be reset with valid token                               1.53s  
+
+   PASS  Tests\Feature\Auth\RegistrationTest
+  ✓ registration screen can be rendered                                  0.88s  
+  ✓ new users can register                                               1.34s  
+
+   PASS  Tests\Feature\Auth\TwoFactorChallengeTest
+  ✓ two factor challenge redirects to login when not authenticated       0.24s  
+  ✓ two factor challenge can be rendered                                 1.07s  
+
+   PASS  Tests\Feature\Console\ListingMediaBackfillTest
+  ✓ it queues and syncs media for listings                               0.90s  
+
+   PASS  Tests\Feature\Console\ListingMediaPruneTest
+  ✓ it lists and deletes orphan media files                              0.48s  
+
+   PASS  Tests\Feature\DashboardTest
+  ✓ guests are redirected from the dashboard                             0.34s  
+  ✓ subscribers cannot access the dashboard when an admin exists         0.26s  
+  ✓ admins can view the dashboard                                        3.86s  
+  ✓ dashboard displays analytics metrics when connected to google analytics 1.55s  
+  ✓ dashboard surfaces a helpful message when analytics data is unavailable 1.84s  
+  ✓ client tracking snippet is injected when enabled                     3.07s  
+
+   PASS  Tests\Feature\DatabaseSeederTest
+  ✓ database seeder creates at least 100 listings                        0.60s  
+
+   PASS  Tests\Feature\ExampleTest
+  ✓ returns a successful response                                        1.25s  
+
+   PASS  Tests\Feature\HomepageComprehensiveTest
+  ✓ it renders core homepage sections                                    1.36s  
+  ✓ it shows a helpful state when idx is enabled but no listings are returned 1.27s  
+  ✓ it recovers gracefully when idx fetch throws and still renders the page 1.27s  
+  ✓ it falls back to active listings when PoS results are empty and fallback is enabled 1.36s  
+
+   PASS  Tests\Feature\HomepageIdxListingsTest
+  ✓ it displays idx listings when available                              1.43s  
+  ✓ it shows guidance when idx credentials are missing                   1.33s  
+
+   WARN  Tests\Feature\HomepageLiveIdxFeedTest
+  - it renders the live idx feed on the homepage → IDX client is not enabled. 0.45s  
+
+   WARN  Tests\Feature\IdxApiPowerOfSaleSmokeTest
+  - it fetches power of sale listings live → IDX client is not enabled.  0.21s  
+
+   FAIL  Tests\Feature\IdxApiSmokeTest
+  ⨯ it fetches property data from the idx api                            0.25s  
+  ⨯ it fetches media data (images) from the idx api                      0.20s  
+  - it service attaches image_url to demo listings → IDX client is not enabled. 0.21s  
+
+   PASS  Tests\Feature\IdxClientFiltersActiveListingsTest
+  ✓ it returns only live listings using StandardStatus                   0.24s  
+
+   PASS  Tests\Feature\IdxClientMediaRequestSelectTest
+  ✓ it composes Media request with $select and stable $orderby           0.21s  
+
+   PASS  Tests\Feature\IdxClientRequestShapeTest
+  ✓ it composes Property request with $select and stable $orderby        0.20s  
+
+   PASS  Tests\Feature\ImportFeedsSourcePriorityTest
+  ✓ it upgrades VOW to IDX when both present                             0.26s  
+  ✓ it keeps IDX when VOW ingests after                                  0.20s  
+
+   PASS  Tests\Feature\Jobs\BackfillListingMediaTest
+  ✓ it dispatches media sync jobs for listings missing media             0.27s  
+
+   PASS  Tests\Feature\Jobs\DownloadListingMediaTest
+  ✓ it downloads and stores listing media                                0.31s  
+
+   PASS  Tests\Feature\Jobs\ImportCursorClampingTest
+  ✓ replication cursor never advances into the future                    0.35s  
+
+   PASS  Tests\Feature\Jobs\ImportIdxPowerOfSaleTest
+  ✓ it imports power of sale listings end-to-end                         0.34s  
+  ✓ it updates existing listing matched by board_code + mls_number without duplicate 0.19s  
+  ✓ it follows @odata.nextLink pagination when provided                  0.20s  
+  ✓ it updates a soft-deleted duplicate instead of inserting a new row   0.19s  
+  ✓ it does not append status history when import payload is unchanged   0.20s  
+
+   PASS  Tests\Feature\Jobs\ImportVowPowerOfSaleTest
+  ✓ it normalizes long board names to short codes in VOW import          0.20s  
+
+   PASS  Tests\Feature\ListingSchemaTest
+  ✓ it creates the listings table with expected columns                  0.20s  
+  ✓ it creates the sources table with expected columns                   0.18s  
+  ✓ it creates the municipalities table with expected columns            0.18s  
+  ✓ it creates the listing status history table with expected columns    0.19s  
+  ✓ it creates the saved searches table with expected columns            0.19s  
+  ✓ it creates the audit logs table with expected columns                0.20s  
+  ✓ it persists listings with related media via factories                0.19s  
+  ✓ it maps payload data into canonical listing records                  0.19s  
+
+   WARN  Tests\Feature\Live\LongLiveImportBothTest
+  - it runs a full live import and surfaces listings + media (URLs only) → IDX client not enabled. Set IDX_BASE_URI and IDX_TOKEN. 0.19s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ButtonsExplicitTest
+  ✓ test connection button loads preview and shows notice                1.39s  
+  ✓ refresh preview clears cache and reloads preview                     1.27s  
+  ✓ idx and vow probe buttons populate status details                    1.41s  
+
+   FAIL  Tests\Feature\Livewire\Admin\Feeds\CancelAndDedupTest
+  ✓ cancel queued imports removes matching jobs and shows a notice       1.08s  
+  ⨯ import both does not queue when running or already queued            1.17s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ImportAllFromComponentTest
+  ✓ import all button imports listings and marks progress completed      1.09s  
+  ✓ import all shows completed with 0 items when no results are returned 1.00s  
+  ✓ import both shows a visible import queued notice                     1.57s  
+  ✓ import both also queues media backfill job                           0.96s  
+  ✓ import both imports listings and media                               1.02s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ImportBothEndToEndTest
+  ✓ it resets cursors and imports even when prior runs advanced the cursor 0.93s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ImportBothFiveWithImagesTest
+  ✓ import both imports five listings with images and pages are reachable 4.88s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ImportCriticalFieldsNotNullTest
+  ✓ critical listing fields are never null after import                  1.06s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\ImportStoresFullPublicRemarksTest
+  ✓ import stores full public remarks without truncation                 0.98s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\IndexTest
+  ✓ guests are redirected from the data feeds page                       0.18s  
+  ✓ subscribers cannot access the data feeds page                        0.23s  
+  ✓ admins can view the data feeds page                                  1.87s  
+
+   PASS  Tests\Feature\Livewire\Admin\Feeds\StaleRunningProgressAllowsQueueTest
+  ✓ stale running progress does not block importBoth when queue is idle  1.01s  
+
+   PASS  Tests\Feature\Livewire\Admin\Listings\ShowTest
+  ✓ guests are redirected from the listing detail view                   0.20s  
+  ✓ subscribers cannot access the listing detail view when an admin exists 0.24s  
+  ✓ admins can review listing metadata, photos, and change history       1.88s  
+
+   PASS  Tests\Feature\Livewire\Admin\Settings\AnalyticsSettingsTest
+  ✓ it renders the analytics settings page for administrators            1.77s  
+  ✓ it allows administrators to enable both client and server analytics  1.57s  
+  ✓ it requires a property id when enabling server metrics               1.69s  
+  ✓ it validates service account credentials structure                   1.58s  
+  ✓ it requires a measurement id when any integration toggle is enabled  1.16s  
+  ✓ it allows enabling client tracking without server credentials        1.28s  
+
+   PASS  Tests\Feature\Livewire\Admin\Users\IndexTest
+  ✓ guests are redirected from the users index                           0.19s  
+  ✓ subscribers cannot access the admin users index                      0.23s  
+  ✓ admins can browse, update roles, and remove subscriber accounts      5.92s  
+  ✓ administrators cannot delete their own accounts via the admin workspace 1.97s  
+  ✓ admins can invite new subscribers and send reset links               2.96s  
+  ✓ admins can trigger password reset emails for existing users          2.47s  
+  ✓ admins can force credential rotations for users                      2.51s  
+  ✓ admins can suspend and reactivate users                              2.73s  
+  ✓ admins cannot trigger additional actions while processing another    3.63s  
+  ✓ users index renders a processing indicator for privileged actions    1.34s  
+  ✓ the final active admin cannot be demoted or suspended via the workspace 3.08s  
+  ✓ the first authenticated user is promoted to admin when no admins exist 2.26s  
+
+   PASS  Tests\Feature\ProcessListingPayloadTest
+  ✓ it processes payloads via queued job and normalises data             0.22s  
+
+   PASS  Tests\Feature\PublicListingsTest
+  ✓ guests can browse current listings                                   1.08s  
+  ✓ listings pagination links are rendered                               1.38s  
+  ✓ guests can view a listing detail page                                1.09s  
+  ✓ suppressed listings are hidden from the public catalog               2.10s  
+
+   PASS  Tests\Feature\Services\Idx\IdxClientCachingTest
+  ✓ it caches listing results to avoid repeated network calls            0.22s  
+
+   PASS  Tests\Feature\Services\Idx\IdxClientTest
+  ✓ example                                                              1.31s  
+
+   PASS  Tests\Feature\Services\Idx\ListingTransformerTest
+  ✓ it transforms listing payload with sensible fallbacks                0.19s  
+
+   PASS  Tests\Feature\Settings\PasswordUpdateTest
+  ✓ password can be updated                                              1.22s  
+  ✓ correct password must be provided to update password                 1.16s  
+
+   PASS  Tests\Feature\Settings\ProfileUpdateTest
+  ✓ profile page is displayed                                            1.71s  
+  ✓ subscriber does not see admin navigation links                       1.62s  
+  ✓ profile information can be updated                                   1.23s  
+  ✓ email verification status is unchanged when email address is unchanged 1.20s  
+  ✓ user can delete their account                                        0.77s  
+  ✓ correct password must be provided to delete account                  0.83s  
+
+   PASS  Tests\Feature\Settings\TwoFactorAuthenticationTest
+  ✓ two factor settings page can be rendered                             1.66s  
+  ✓ two factor settings page requires password confirmation when enabled 0.18s  
+  ✓ two factor settings page returns forbidden response when two factor is disabled 0.23s  
+  ✓ two factor authentication disabled when confirmation abandoned between requests 0.81s  
+
+   PASS  Tests\Feature\Volt\AdminFeedsPageTest
+  ✓ it requires authentication                                           0.19s  
+  ✓ it renders admin feeds page                                          1.76s  
+
+   PASS  Tests\Feature\Volt\AdminFeedsQueuedNoticeVisibilityTest
+  ✓ it shows queued notice prominently and with at least 10s visibility  1.81s  
+
+   PASS  Tests\Feature\WelcomePageProgressTest
+  ✓ it shows milestone progress aligned with the task list               1.18s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\IdxApiSmokeTest > it fetches property data from the idx api   
+  Expecting '' not to be ''.
+
+  at tests/Feature/IdxApiSmokeTest.php:18
+     14▕ 
+     15▕     $baseUri = rtrim((string) ($idxConfig['base_uri'] ?? ''), '/');
+     16▕     $token = $idxConfig['token'] ?? null;
+     17▕ 
+  ➜  18▕     expect($baseUri)->not->toBe('');
+     19▕     expect($token)->not->toBeNull();
+     20▕     expect($token)->not->toBe('');
+     21▕ 
+     22▕     $response = Http::retry(3, 250)
+
+  1   tests/Feature/IdxApiSmokeTest.php:18
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\IdxApiSmokeTest > it fetches media data (images) from the idx api   
+  Expecting '' not to be ''.
+
+  at tests/Feature/IdxApiSmokeTest.php:49
+     45▕ 
+     46▕     $baseUri = rtrim((string) ($idxConfig['base_uri'] ?? ''), '/');
+     47▕     $token = $idxConfig['token'] ?? null;
+     48▕ 
+  ➜  49▕     expect($baseUri)->not->toBe('');
+     50▕     expect($token)->not->toBeNull();
+     51▕     expect($token)->not->toBe('');
+     52▕ 
+     53▕     $response = Http::retry(3, 250)
+
+  1   tests/Feature/IdxApiSmokeTest.php:49
+
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\Livewire\Admin\Feeds\CancelAndDedupTest > import both does not queue when running or already queued   
+  The unexpected [App\Jobs\ImportAllPowerOfSaleFeeds] job was dispatched.
+Failed asserting that false is true.
+
+  at vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/BusFake.php:190
+    186▕         if ($command instanceof Closure) {
+    187▕             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
+    188▕         }
+    189▕ 
+  ➜ 190▕         PHPUnit::assertTrue(
+    191▕             $this->dispatched($command, $callback)->count() === 0 &&
+    192▕             $this->dispatchedAfterResponse($command, $callback)->count() === 0 &&
+    193▕             $this->dispatchedSync($command, $callback)->count() === 0,
+    194▕             "The unexpected [{$command}] job was dispatched."
+
+  1   vendor/laravel/framework/src/Illuminate/Support/Testing/Fakes/BusFake.php:190
+  2   vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php:363
+  3   tests/Feature/Livewire/Admin/Feeds/CancelAndDedupTest.php:58
+
+
+  Tests:    3 failed, 4 skipped, 141 passed (590 assertions)
+  Duration: 197.16s
+

@@ -52,7 +52,6 @@
 -   [x] Tests: job + URL accessor
 -   [x] Command: listing-media:backfill (missing downloads)
 -   [x] Command: listing-media:prune (dry-run, schedule)
--   [ ] Command: listing-media:prune (dry-run, schedule)
 -   [ ] Runbook: storage:link, env, worker notes
 -   [x] Metrics: job success/failure counters
 -   [ ] Retention: policy for soft-deleted listings

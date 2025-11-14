@@ -8,10 +8,13 @@ class ResoFilters
 {
     public static function powerOfSale(): string
     {
+        // Include common Power of Sale phrasing variants. Some RESO feeds are case-sensitive
+        // for string functions like contains(), so include multiple case variants.
         return 'PublicRemarks ne null and '
             ."startswith(TransactionType,'For Sale') and ("
             ."contains(PublicRemarks,'power of sale') or "
             ."contains(PublicRemarks,'Power of Sale') or "
+            ."contains(PublicRemarks,'Power Of Sale') or "
             ."contains(PublicRemarks,'POWER OF SALE') or "
             ."contains(PublicRemarks,'Power-of-Sale') or "
             ."contains(PublicRemarks,'Power-of-sale') or "

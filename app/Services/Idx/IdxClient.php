@@ -95,7 +95,7 @@ class IdxClient
     private function connection(): PendingRequest
     {
         return Http::retry(2, 200)
-            ->timeout(30) // Increased from 8 to 30 seconds for complex queries
+            ->timeout(10)
             ->baseUrl(rtrim($this->baseUri(), '/'))
             ->withToken($this->token())
             ->acceptJson()
@@ -219,8 +219,8 @@ class IdxClient
 
             $start = microtime(true);
 
-            // Increased timeout for complex Power of Sale query
-            $response = $this->connection()->retry(1, 200)->timeout(30)->get('Property', [
+            // Keep this tighter than PHP's execution limit so failures are handled gracefully
+            $response = $this->connection()->retry(1, 200)->timeout(8)->get('Property', [
                 '$select' => $select,
                 '$filter' => $filter,
                 '$top' => $limit,

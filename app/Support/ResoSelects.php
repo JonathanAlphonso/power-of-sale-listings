@@ -89,6 +89,7 @@ class ResoSelects
             'ListPrice',
             'OriginalListPrice',
             'ModificationTimestamp',
+            'OriginalEntryTimestamp',
             'ListingContractDate',
             'UnparsedAddress',
             'PublicRemarks',

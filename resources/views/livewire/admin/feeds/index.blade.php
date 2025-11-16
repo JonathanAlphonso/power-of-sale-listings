@@ -3,6 +3,7 @@
 use App\Jobs\BackfillListingMedia;
 use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Jobs\ImportIdxPowerOfSale;
+use App\Jobs\ImportRecentListings;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Models\Listing;
 use App\Services\Idx\IdxClient;
@@ -134,6 +135,31 @@ new #[Layout('components.layouts.app')] class extends Component
             ]);
         }
         $this->notice = __('IDX import queued');
+        $this->dispatch('feeds:notice', notice: $this->notice);
+    }
+
+    public function importRecentListings(): void
+    {
+        try {
+            ImportRecentListings::dispatch(50, 200);
+            logger()->info('feeds.import_recent_queued', [
+                'ts' => now()->toIso8601String(),
+                'queue' => (string) config('queue.default'),
+            ]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importRecentListings',
+                'queued' => true,
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('feeds.import_recent_failed_to_queue', ['error' => $e->getMessage()]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importRecentListings',
+                'queued' => false,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->notice = __('Recent (24h) import queued');
         $this->dispatch('feeds:notice', notice: $this->notice);
     }
 
@@ -451,6 +477,24 @@ new #[Layout('components.layouts.app')] class extends Component
     }
 
     #[Computed]
+    public function recentImportSummary(): array
+    {
+        /** @var array<string, mixed> $summary */
+        $summary = (array) Cache::get('idx.import.recent', []);
+
+        return [
+            'window_start' => $summary['window_start'] ?? null,
+            'finished_at' => $summary['finished_at'] ?? null,
+            'idx_expected' => (int) ($summary['idx_expected'] ?? 0),
+            'idx_records' => (int) ($summary['idx_records'] ?? 0),
+            'idx_db_after' => $summary['idx_db_after'] ?? null,
+            'vow_expected' => (int) ($summary['vow_expected'] ?? 0),
+            'vow_records' => (int) ($summary['vow_records'] ?? 0),
+            'vow_db_after' => $summary['vow_db_after'] ?? null,
+        ];
+    }
+
+    #[Computed]
     public function importStatus(): array
     {
         $status = (array) Cache::get('idx.import.pos', []);
@@ -485,7 +529,8 @@ new #[Layout('components.layouts.app')] class extends Component
                     ->where(function ($q) {
                         $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
                             ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
-                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%')
+                            ->orWhere('payload', 'like', '%ImportRecentListings%');
                     })
                     ->orderBy('id')
                     ->get();
@@ -517,6 +562,8 @@ new #[Layout('components.layouts.app')] class extends Component
                         $type = 'ImportIdxPowerOfSale';
                     } elseif (str_contains($payload, 'ImportVowPowerOfSale')) {
                         $type = 'ImportVowPowerOfSale';
+                    } elseif (str_contains($payload, 'ImportRecentListings')) {
+                        $type = 'ImportRecentListings';
                     }
 
                     return [
@@ -563,7 +610,8 @@ new #[Layout('components.layouts.app')] class extends Component
                     ->where(function ($q) {
                         $q->where('payload', 'like', '%ImportAllPowerOfSaleFeeds%')
                             ->orWhere('payload', 'like', '%ImportIdxPowerOfSale%')
-                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%');
+                            ->orWhere('payload', 'like', '%ImportVowPowerOfSale%')
+                            ->orWhere('payload', 'like', '%ImportRecentListings%');
                     })
                     ->delete();
             }
@@ -862,6 +910,18 @@ new #[Layout('components.layouts.app')] class extends Component
                         {{ __('Importing…') }}
                     </span>
                 </flux:button>
+                <flux:button
+                    variant="outline"
+                    wire:click="importRecentListings"
+                    wire:loading.attr="disabled"
+                    wire:target="importRecentListings"
+                >
+                    <span wire:loading.remove wire:target="importRecentListings">{{ __('Import last 24h (all)') }}</span>
+                    <span wire:loading wire:target="importRecentListings" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Importing…') }}
+                    </span>
+                </flux:button>
                 <flux:button 
                     icon="arrows-right-left" 
                     wire:click="importBoth" 
@@ -948,7 +1008,7 @@ new #[Layout('components.layouts.app')] class extends Component
         </div>
     </div>
 
-    <div class="mt-6 grid gap-6 md:grid-cols-2">
+    <div class="mt-6 grid gap-6 md:grid-cols-3">
         <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
             <flux:heading size="sm" class="mb-3">{{ __('Feed Cache') }}</flux:heading>
             <dl class="grid gap-3 text-sm">
@@ -984,6 +1044,51 @@ new #[Layout('components.layouts.app')] class extends Component
                 <div class="flex items-center justify-between">
                     <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Max list price') }}</dt>
                     <dd class="font-semibold">{{ \App\Support\ListingPresentation::currency($this->priceStats['max']) }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <flux:heading size="sm" class="mb-3">{{ __('Last 24h Import Summary') }}</flux:heading>
+            @php($summary = $this->recentImportSummary)
+            <dl class="grid gap-2 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Window start (UTC)') }}</dt>
+                    <dd class="font-mono">{{ $summary['window_start'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('Finished at (UTC)') }}</dt>
+                    <dd class="font-mono">{{ $summary['finished_at'] ?? '—' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('IDX records (expected)') }}</dt>
+                    <dd class="font-semibold">
+                        {{ number_format($summary['idx_records']) }}
+                        <span class="text-xs text-zinc-500">
+                            / {{ number_format($summary['idx_expected']) }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('IDX in DB (For Sale)') }}</dt>
+                    <dd class="font-semibold">
+                        {{ $summary['idx_db_after'] !== null ? number_format($summary['idx_db_after']) : '—' }}
+                    </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('VOW records (expected)') }}</dt>
+                    <dd class="font-semibold">
+                        {{ number_format($summary['vow_records']) }}
+                        <span class="text-xs text-zinc-500">
+                            / {{ number_format($summary['vow_expected']) }}
+                        </span>
+                    </dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-zinc-600 dark:text-zinc-400">{{ __('VOW in DB (For Sale)') }}</dt>
+                    <dd class="font-semibold">
+                        {{ $summary['vow_db_after'] !== null ? number_format($summary['vow_db_after']) : '—' }}
+                    </dd>
                 </div>
             </dl>
         </div>

@@ -39,7 +39,7 @@ test('critical listing fields are never null after import', function (): void {
                     'ModificationTimestamp' => now()->toISOString(),
                     'PropertyType' => 'Residential Freehold',
                     'PropertySubType' => 'Detached',
-                    'PublicRemarks' => null, // simulate missing remarks
+                    'PublicRemarks' => 'Power of Sale test', // ensure PoS detection passes
                     'TransactionType' => null, // simulate missing
                 ]],
             ], 200);

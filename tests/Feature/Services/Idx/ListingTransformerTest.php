@@ -31,5 +31,6 @@ it('transforms listing payload with sensible fallbacks', function (): void {
     expect($out['property_type'])->toBe('Residential');
     expect($out['property_sub_type'])->toBe('Detached');
     expect($out['remarks'])->toBeString()->toHaveLength(223)->toEndWith('...');
+    expect($out['remarks_full'])->toBeString()->toHaveLength(strlen(trim(str_repeat('Nice. ', 60))));
     expect($out['modified_at'])->not->toBeNull();
 });

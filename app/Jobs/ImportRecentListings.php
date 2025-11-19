@@ -24,9 +24,9 @@ class ImportRecentListings implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 1200;
+    public int $timeout = 7200;
 
-    public function __construct(public int $pageSize = 500, public int $maxPages = 200) {}
+    public function __construct(public int $pageSize = 500, public int $maxPages = 200, public ?string $windowStartIso = null) {}
 
     /**
      * @return array<int, mixed>
@@ -40,7 +40,9 @@ class ImportRecentListings implements ShouldQueue
 
     public function handle(IdxClient $idx): void
     {
-        $windowStart = CarbonImmutable::now('UTC')->subDay();
+        $windowStart = $this->windowStartIso !== null
+            ? CarbonImmutable::parse($this->windowStartIso)->utc()
+            : CarbonImmutable::now('UTC')->subDay();
 
         $idxSourceId = Source::query()->where('slug', 'idx')->value('id');
         $vowSourceId = Source::query()->where('slug', 'vow')->value('id');
@@ -153,9 +155,9 @@ class ImportRecentListings implements ShouldQueue
                 'cursor_ts_before' => $cursorTimestamp->toIso8601String(),
                 'cursor_key_before' => $cursorKey,
                 'expected' => $expectedCount,
-                'first_ts' => is_array($first) ? (Arr::get($first, 'OriginalEntryTimestamp') ?? Arr::get($first, 'ModificationTimestamp')) : null,
+                'first_ts' => is_array($first) ? (Arr::get($first, 'ModificationTimestamp') ?? Arr::get($first, 'OriginalEntryTimestamp')) : null,
                 'first_key' => is_array($first) ? Arr::get($first, 'ListingKey') : null,
-                'last_ts' => is_array($last) ? (Arr::get($last, 'OriginalEntryTimestamp') ?? Arr::get($last, 'ModificationTimestamp')) : null,
+                'last_ts' => is_array($last) ? (Arr::get($last, 'ModificationTimestamp') ?? Arr::get($last, 'OriginalEntryTimestamp')) : null,
                 'last_key' => is_array($last) ? Arr::get($last, 'ListingKey') : null,
             ]);
 
@@ -174,7 +176,7 @@ class ImportRecentListings implements ShouldQueue
                     $this->upsertIdxListingFromRaw($idx, $transformer, $raw, $windowStart);
                     $processed++;
 
-                    $tsStr = Arr::get($raw, 'OriginalEntryTimestamp') ?? Arr::get($raw, 'ModificationTimestamp');
+                    $tsStr = Arr::get($raw, 'ModificationTimestamp') ?? Arr::get($raw, 'OriginalEntryTimestamp');
                     $key = Arr::get($raw, 'ListingKey');
                     if (is_string($tsStr) && $tsStr !== '' && is_string($key) && $key !== '') {
                         try {
@@ -234,9 +236,9 @@ class ImportRecentListings implements ShouldQueue
                 'cursor_ts_before' => $cursorTimestamp->toIso8601String(),
                 'cursor_key_before' => $cursorKey,
                 'expected' => $expectedCount,
-                'first_ts' => is_array($first) ? (Arr::get($first, 'OriginalEntryTimestamp') ?? Arr::get($first, 'ModificationTimestamp')) : null,
+                'first_ts' => is_array($first) ? (Arr::get($first, 'ModificationTimestamp') ?? Arr::get($first, 'OriginalEntryTimestamp')) : null,
                 'first_key' => is_array($first) ? Arr::get($first, 'ListingKey') : null,
-                'last_ts' => is_array($last) ? (Arr::get($last, 'OriginalEntryTimestamp') ?? Arr::get($last, 'ModificationTimestamp')) : null,
+                'last_ts' => is_array($last) ? (Arr::get($last, 'ModificationTimestamp') ?? Arr::get($last, 'OriginalEntryTimestamp')) : null,
                 'last_key' => is_array($last) ? Arr::get($last, 'ListingKey') : null,
             ]);
 
@@ -255,7 +257,7 @@ class ImportRecentListings implements ShouldQueue
                     $this->upsertVowListingFromRaw($idx, $transformer, $raw, $windowStart);
                     $processed++;
 
-                    $tsStr = Arr::get($raw, 'OriginalEntryTimestamp') ?? Arr::get($raw, 'ModificationTimestamp');
+                    $tsStr = Arr::get($raw, 'ModificationTimestamp') ?? Arr::get($raw, 'OriginalEntryTimestamp');
                     $key = Arr::get($raw, 'ListingKey');
                     if (is_string($tsStr) && $tsStr !== '' && is_string($key) && $key !== '') {
                         try {
@@ -299,7 +301,7 @@ class ImportRecentListings implements ShouldQueue
         $escapedKey = str_replace("'", "''", $cursorKey === '' ? '0' : $cursorKey);
         $baseFilter = "TransactionType eq 'For Sale'";
         $cursorFilter = sprintf(
-            'OriginalEntryTimestamp gt %s or (OriginalEntryTimestamp eq %s and ListingKey gt \'%s\')',
+            'ModificationTimestamp gt %s or (ModificationTimestamp eq %s and ListingKey gt \'%s\')',
             $ts,
             $ts,
             $escapedKey,
@@ -311,7 +313,7 @@ class ImportRecentListings implements ShouldQueue
         $response = $request->get('Property', [
             '$select' => $select,
             '$filter' => $filter,
-            '$orderby' => 'OriginalEntryTimestamp,ListingKey',
+            '$orderby' => 'ModificationTimestamp,ListingKey',
             '$top' => $top,
         ]);
 
@@ -350,8 +352,8 @@ class ImportRecentListings implements ShouldQueue
         $request = $factory->idxProperty(preferMaxPage: true);
 
         $response = $request->get('Property', [
-            '$filter' => sprintf("TransactionType eq 'For Sale' and OriginalEntryTimestamp ge %s", $ts),
-            '$orderby' => 'OriginalEntryTimestamp,ListingKey',
+            '$filter' => sprintf("TransactionType eq 'For Sale' and ModificationTimestamp ge %s", $ts),
+            '$orderby' => 'ModificationTimestamp,ListingKey',
             '$top' => 0,
             '$count' => 'true',
         ]);
@@ -394,7 +396,7 @@ class ImportRecentListings implements ShouldQueue
         $escapedKey = str_replace("'", "''", $cursorKey === '' ? '0' : $cursorKey);
         $baseFilter = "TransactionType eq 'For Sale'";
         $cursorFilter = sprintf(
-            'OriginalEntryTimestamp gt %s or (OriginalEntryTimestamp eq %s and ListingKey gt \'%s\')',
+            'ModificationTimestamp gt %s or (ModificationTimestamp eq %s and ListingKey gt \'%s\')',
             $ts,
             $ts,
             $escapedKey,
@@ -406,7 +408,7 @@ class ImportRecentListings implements ShouldQueue
         $response = $request->get('Property', [
             '$select' => $select,
             '$filter' => $filter,
-            '$orderby' => 'OriginalEntryTimestamp,ListingKey',
+            '$orderby' => 'ModificationTimestamp,ListingKey',
             '$top' => $top,
         ]);
 
@@ -445,8 +447,8 @@ class ImportRecentListings implements ShouldQueue
         $request = $factory->vowProperty(preferMaxPage: true);
 
         $response = $request->get('Property', [
-            '$filter' => sprintf("TransactionType eq 'For Sale' and OriginalEntryTimestamp ge %s", $ts),
-            '$orderby' => 'OriginalEntryTimestamp,ListingKey',
+            '$filter' => sprintf("TransactionType eq 'For Sale' and ModificationTimestamp ge %s", $ts),
+            '$orderby' => 'ModificationTimestamp,ListingKey',
             '$top' => 0,
             '$count' => 'true',
         ]);
@@ -571,8 +573,7 @@ class ImportRecentListings implements ShouldQueue
             'street_number' => Arr::get($raw, 'StreetNumber'),
             'street_name' => Arr::get($raw, 'StreetName'),
             'street_address' => $attrs['address'] ?? null,
-            'public_remarks' => is_string($publicRemarks) ? trim((string) $publicRemarks) : '',
-            'public_remarks_full' => is_string($publicRemarks) ? (string) $publicRemarks : '',
+            'public_remarks' => is_string($publicRemarks) ? (string) $publicRemarks : '',
             'unit_number' => Arr::get($raw, 'UnitNumber'),
             'city' => $attrs['city'] ?? null,
             'province' => $province,
@@ -715,8 +716,7 @@ class ImportRecentListings implements ShouldQueue
             'street_number' => Arr::get($raw, 'StreetNumber'),
             'street_name' => Arr::get($raw, 'StreetName'),
             'street_address' => $attrs['address'] ?? null,
-            'public_remarks' => is_string($publicRemarks) ? trim((string) $publicRemarks) : '',
-            'public_remarks_full' => is_string($publicRemarks) ? (string) $publicRemarks : '',
+            'public_remarks' => is_string($publicRemarks) ? (string) $publicRemarks : '',
             'unit_number' => Arr::get($raw, 'UnitNumber'),
             'city' => $attrs['city'] ?? null,
             'province' => $province,

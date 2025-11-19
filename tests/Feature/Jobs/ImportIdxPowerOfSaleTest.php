@@ -250,3 +250,67 @@ it('does not append status history when import payload is unchanged', function (
     $count2 = \App\Models\ListingStatusHistory::query()->where('listing_id', $listing->id)->count();
     expect($count2)->toBe($count1);
 });
+
+it('imports thousands of recent power of sale listings with full public remarks', function (): void {
+    config()->set('queue.default', 'sync');
+    config()->set('services.idx.base_uri', 'https://idx.example/odata/');
+    config()->set('services.idx.token', 'test-token');
+
+    expect(Listing::query()->count())->toBe(0);
+
+    $now = now()->toImmutable();
+    $items = [];
+
+    for ($i = 1; $i <= 5000; $i++) {
+        $items[] = [
+            'ListingKey' => 'KPOS'.$i,
+            'ListingId' => 'KPOS-'.$i,
+            'OriginatingSystemName' => 'TRREB',
+            'City' => 'Toronto',
+            'StateOrProvince' => 'ON',
+            'UnparsedAddress' => ''.$i.' King St W, Toronto, ON',
+            'StreetNumber' => (string) $i,
+            'StreetName' => 'King',
+            'StreetSuffix' => 'St W',
+            'StandardStatus' => 'Active',
+            'ListPrice' => 500000 + $i,
+            'ModificationTimestamp' => $now->subDays($i % 30)->toIso8601String(),
+            'PropertyType' => 'Residential Freehold',
+            'PropertySubType' => 'Detached',
+            'PublicRemarks' => 'Power of Sale '.str_repeat('Long remarks ', 10),
+            'TransactionType' => 'For Sale',
+        ];
+    }
+
+    Http::fake([
+        'idx.example/odata/Media*' => Http::response(['value' => []], 200),
+        'idx.example/odata/Property*' => function ($request) use (&$items) {
+            $query = [];
+            parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
+            $top = (int) ($query['$top'] ?? 100);
+
+            static $offset = 0;
+
+            if ($offset >= count($items)) {
+                return Http::response(['value' => []], 200);
+            }
+
+            $slice = array_slice($items, $offset, $top);
+            $offset += count($slice);
+
+            return Http::response(['value' => $slice], 200);
+        },
+    ]);
+
+    $job = new ImportIdxPowerOfSale(pageSize: 100, maxPages: 100);
+    $job->handle(app(IdxClient::class));
+
+    $count = Listing::query()
+        ->where('external_id', 'like', 'KPOS%')
+        ->whereNotNull('public_remarks')
+        ->where('public_remarks', '!=', '')
+        ->where('modified_at', '>=', $now->subDays(30))
+        ->count();
+
+    expect($count)->toBe(5000);
+});

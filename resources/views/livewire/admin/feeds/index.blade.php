@@ -7,6 +7,7 @@ use App\Jobs\ImportRecentListings;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Models\Listing;
 use App\Services\Idx\IdxClient;
+use App\Services\Idx\RequestFactory;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -160,6 +161,85 @@ new #[Layout('components.layouts.app')] class extends Component
         }
 
         $this->notice = __('Recent (24h) import queued');
+        $this->dispatch('feeds:notice', notice: $this->notice);
+    }
+
+    public function importLastThirtyDaysForFlagging(): void
+    {
+        try {
+            $windowStartIso = now('UTC')->subDays(30)->toIso8601String();
+
+            ImportRecentListings::dispatch(100, 1000, $windowStartIso);
+            logger()->info('feeds.import_last30_queued', [
+                'ts' => now()->toIso8601String(),
+                'queue' => (string) config('queue.default'),
+                'window_start' => $windowStartIso,
+            ]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importLastThirtyDaysForFlagging',
+                'queued' => true,
+                'window_start' => $windowStartIso,
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('feeds.import_last30_failed_to_queue', ['error' => $e->getMessage()]);
+            $this->dispatch('feeds:debug', debug: [
+                'where' => 'importLastThirtyDaysForFlagging',
+                'queued' => false,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->notice = __('Last 30 days For Sale import queued');
+        $this->dispatch('feeds:notice', notice: $this->notice);
+    }
+
+    public function checkLastThirtyDaysCount(RequestFactory $factory): void
+    {
+        $windowStart = CarbonImmutable::now('UTC')->subDays(30);
+        $windowIso = $windowStart->toIso8601String();
+
+        try {
+            $request = $factory->idxProperty(preferMaxPage: true)->timeout(60);
+
+            $response = $request->get('Property', [
+                '$filter' => sprintf("TransactionType eq 'For Sale' and ModificationTimestamp ge %s", $windowIso),
+                '$orderby' => 'ModificationTimestamp,ListingKey',
+                '$top' => 0,
+                '$count' => 'true',
+            ]);
+
+            if ($response->failed()) {
+                $this->notice = __('IDX 30 day count failed (HTTP :status)', ['status' => $response->status()]);
+                $this->dispatch('feeds:notice', notice: $this->notice);
+
+                return;
+            }
+
+            $data = $response->json();
+            $rawCount = $data['@odata.count'] ?? null;
+
+            if (is_int($rawCount) || is_numeric($rawCount)) {
+                $count = (int) $rawCount;
+
+                logger()->info('feeds.idx_last30_count', [
+                    'ts' => now()->toIso8601String(),
+                    'window_start' => $windowIso,
+                    'count' => $count,
+                ]);
+
+                $this->notice = __('IDX For Sale last 30 days: :n listings', ['n' => number_format($count)]);
+            } else {
+                $this->notice = __('IDX did not return a numeric last 30 days count.');
+            }
+        } catch (\Throwable $e) {
+            logger()->error('feeds.idx_last30_count_failed', [
+                'ts' => now()->toIso8601String(),
+                'window_start' => $windowIso,
+                'error' => $e->getMessage(),
+            ]);
+            $this->notice = __('IDX 30 day count failed: :msg', ['msg' => $e->getMessage()]);
+        }
+
         $this->dispatch('feeds:notice', notice: $this->notice);
     }
 
@@ -794,6 +874,14 @@ new #[Layout('components.layouts.app')] class extends Component
                     </span>
                 </flux:button>
 
+                <flux:button variant="outline" wire:click="checkLastThirtyDaysCount" wire:loading.attr="disabled" wire:target="checkLastThirtyDaysCount">
+                    <span wire:loading.remove wire:target="checkLastThirtyDaysCount">{{ __('Count last 30 days (IDX)') }}</span>
+                    <span wire:loading wire:target="checkLastThirtyDaysCount" class="inline-flex items-center gap-2">
+                        <flux:icon name="arrow-path" class="animate-spin" />
+                        {{ __('Counting…') }}
+                    </span>
+                </flux:button>
+
                 @if($notice !== '')
                     <span class="text-xs {{ $connected ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">{{ $notice }}</span>
                 @endif
@@ -849,6 +937,29 @@ new #[Layout('components.layouts.app')] class extends Component
                     <dd class="font-semibold">{{ number_format($this->suppressionCount) }}</dd>
                 </div>
             </dl>
+        </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+        <flux:heading size="sm" class="mb-2">{{ __('Power of Sale Replication') }}</flux:heading>
+        <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+            {{ __('Run a full replication of For Sale listings from IDX and VOW using timestamp and key cursors, then classify Power of Sale listings in-app from Public Remarks and backfill media.') }}
+        </flux:text>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <flux:button
+                icon="arrows-right-left"
+                wire:click="importBoth"
+                wire:loading.attr="disabled"
+                wire:target="importBoth"
+                wire:offline.attr="disabled"
+            >
+                <span wire:loading.remove wire:target="importBoth">{{ __('Run PoS replication now') }}</span>
+                <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
+                    <flux:icon name="arrow-path" class="animate-spin" />
+                    {{ __('Importing…') }}
+                </span>
+                <span wire:offline class="text-red-500">{{ __('Offline') }}</span>
+            </flux:button>
         </div>
     </div>
 
@@ -922,19 +1033,17 @@ new #[Layout('components.layouts.app')] class extends Component
                         {{ __('Importing…') }}
                     </span>
                 </flux:button>
-                <flux:button 
-                    icon="arrows-right-left" 
-                    wire:click="importBoth" 
-                    wire:loading.attr="disabled" 
-                    wire:target="importBoth"
-                    wire:offline.attr="disabled"
+                <flux:button
+                    variant="outline"
+                    wire:click="importLastThirtyDaysForFlagging"
+                    wire:loading.attr="disabled"
+                    wire:target="importLastThirtyDaysForFlagging"
                 >
-                    <span wire:loading.remove wire:target="importBoth">{{ __('Import Both Now') }}</span>
-                    <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
+                    <span wire:loading.remove wire:target="importLastThirtyDaysForFlagging">{{ __('Import last 30 days (all)') }}</span>
+                    <span wire:loading wire:target="importLastThirtyDaysForFlagging" class="inline-flex items-center gap-2">
                         <flux:icon name="arrow-path" class="animate-spin" />
                         {{ __('Importing…') }}
                     </span>
-                    <span wire:offline class="text-red-500">{{ __('Offline') }}</span>
                 </flux:button>
                 <flux:button variant="outline" icon="x-mark" wire:click="cancelQueuedImports" wire:loading.attr="disabled" wire:target="cancelQueuedImports">
                     <span wire:loading.remove wire:target="cancelQueuedImports">{{ __('Cancel queued imports') }}</span>

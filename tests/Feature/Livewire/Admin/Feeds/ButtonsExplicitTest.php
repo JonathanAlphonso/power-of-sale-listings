@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
@@ -104,4 +106,48 @@ test('idx and vow probe buttons populate status details', function (): void {
         ->assertSee('Items')
         ->assertSee('KP1')
         ->assertSee('KP2');
+});
+
+test('30 day count button calls idx count endpoint and surfaces count', function (): void {
+    config()->set('services.idx.base_uri', 'https://idx.example/odata/');
+    config()->set('services.idx.token', 'test-token');
+
+    $now = CarbonImmutable::parse('2025-11-18 12:00:00', 'UTC');
+    CarbonImmutable::setTestNow($now);
+
+    Http::fake([
+        'idx.example/odata/Property*' => Http::response([
+            '@odata.count' => 12345,
+            'value' => [],
+        ], 200),
+        '*' => Http::response(['value' => []], 200),
+    ]);
+
+    $admin = acting_admin();
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    Volt::test('admin.feeds.index')
+        ->call('checkLastThirtyDaysCount')
+        ->assertSee('12,345');
+
+    Http::assertSent(function (Request $request) use ($now): bool {
+        if (! str_contains($request->url(), '/Property')) {
+            return false;
+        }
+
+        $queryString = parse_url($request->url(), PHP_URL_QUERY) ?: '';
+        parse_str((string) $queryString, $query);
+
+        expect($query['$top'] ?? null)->toBe('0');
+        expect($query['$count'] ?? null)->toBe('true');
+        expect($query['$orderby'] ?? null)->toBe('ModificationTimestamp,ListingKey');
+        $filter = (string) ($query['$filter'] ?? '');
+        expect($filter)->toContain("TransactionType eq 'For Sale'");
+        expect($filter)->toContain($now->subDays(30)->toIso8601String());
+
+        return true;
+    });
+
+    CarbonImmutable::setTestNow();
 });

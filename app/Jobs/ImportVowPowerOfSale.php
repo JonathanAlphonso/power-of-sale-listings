@@ -11,7 +11,6 @@ use App\Services\Idx\ListingTransformer;
 use App\Services\Idx\RequestFactory;
 use App\Support\BoardCode;
 use App\Support\ListingDateResolver;
-use App\Support\ResoFilters;
 use App\Support\ResoSelects;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
@@ -88,6 +87,14 @@ class ImportVowPowerOfSale implements ShouldQueue
                 'has_next' => $next !== null,
             ]);
 
+            if ($pages === 1) {
+                logger()->info('import_vow_pos.initial_page', [
+                    'records' => count($batch),
+                    'cursor_timestamp' => $lastTs->toIso8601String(),
+                    'cursor_key' => $lastKey,
+                ]);
+            }
+
             if ($batch === []) {
                 logger()->info('import_vow_pos.empty_batch', ['page' => $pages]);
                 break;
@@ -161,7 +168,9 @@ class ImportVowPowerOfSale implements ShouldQueue
         // Base query components
         $select = ResoSelects::propertyPowerOfSaleImport();
 
-        $filter = ResoFilters::powerOfSale();
+        // Remote filter only ensures we receive "For Sale" records; Power-of-Sale
+        // detection is performed locally using normalized remarks.
+        $baseFilter = "TransactionType eq 'For Sale'";
         /** @var RequestFactory $factory */
         $factory = app(RequestFactory::class);
         $request = $factory->vowProperty(preferMaxPage: true);
@@ -185,7 +194,7 @@ class ImportVowPowerOfSale implements ShouldQueue
             : $request
                 ->get('Property', [
                     '$select' => $select,
-                    '$filter' => $this->composeCursorFilter($filter, $lastTimestamp, (string) ($lastKey ?: '0')),
+                    '$filter' => $this->composeCursorFilter($baseFilter, $lastTimestamp, (string) ($lastKey ?: '0')),
                     '$orderby' => 'ModificationTimestamp,ListingKey',
                     '$top' => $top,
                 ]);
@@ -210,7 +219,7 @@ class ImportVowPowerOfSale implements ShouldQueue
             }
             $fallback = $request->get('Property', [
                 '$select' => $select,
-                '$filter' => $filter,
+                '$filter' => $baseFilter,
                 '$orderby' => 'ModificationTimestamp,ListingKey',
                 '$top' => $top,
             ]);
@@ -293,6 +302,19 @@ class ImportVowPowerOfSale implements ShouldQueue
             return;
         }
 
+        $publicRemarksRaw = Arr::get($raw, 'PublicRemarks');
+        $remarks = is_string($publicRemarksRaw) ? $publicRemarksRaw : null;
+        if (! \App\Support\ResoFilters::isPowerOfSaleRemarks($remarks)) {
+            return;
+        }
+
+        logger()->info('import_vow_pos.pos_flagged', [
+            'listing_key' => $key,
+            'originating_system' => Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName'),
+            'transaction_type' => Arr::get($raw, 'TransactionType'),
+            'remarks_preview' => $remarks !== null ? \Illuminate\Support\Str::limit($remarks, 160) : null,
+        ]);
+
         $city = Arr::get($raw, 'City');
         $province = Arr::get($raw, 'StateOrProvince') ?: 'ON';
         $municipalityId = null;
@@ -356,8 +378,7 @@ class ImportVowPowerOfSale implements ShouldQueue
             'street_number' => Arr::get($raw, 'StreetNumber'),
             'street_name' => Arr::get($raw, 'StreetName'),
             'street_address' => $attrs['address'] ?? null,
-            'public_remarks' => is_string($publicRemarks) ? trim((string) $publicRemarks) : '',
-            'public_remarks_full' => is_string($publicRemarks) ? (string) $publicRemarks : '',
+            'public_remarks' => is_string($publicRemarks) ? (string) $publicRemarks : '',
             'unit_number' => Arr::get($raw, 'UnitNumber'),
             'city' => $attrs['city'] ?? null,
             'province' => $province,

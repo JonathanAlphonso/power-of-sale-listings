@@ -14,7 +14,7 @@ test('import stores full public remarks without truncation', function (): void {
     config()->set('services.vow.base_uri', 'https://idx.example/odata/');
     config()->set('services.vow.token', 'test-token');
 
-    $long = str_repeat('Long remarks ', 600); // ~7200 chars
+    $long = 'Power of Sale '.str_repeat('Long remarks ', 600); // include PoS keyword, ~7200 chars
 
     Http::fake([
         'idx.example/odata/Property*' => function ($request) use ($long) {
@@ -57,5 +57,5 @@ test('import stores full public remarks without truncation', function (): void {
     /** @var Listing|null $listing */
     $listing = Listing::query()->where('external_id', 'KFULL1')->first();
     expect($listing)->not->toBeNull();
-    expect(strlen((string) $listing->public_remarks_full))->toBeGreaterThan(6000);
+    expect(strlen((string) $listing->public_remarks))->toBeGreaterThan(6000);
 });

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class Listing extends Model
 {
@@ -43,7 +44,6 @@ class Listing extends Model
         'street_name',
         'street_address',
         'public_remarks',
-        'public_remarks_full',
         'unit_number',
         'city',
         'district',
@@ -92,7 +92,6 @@ class Listing extends Model
             'listed_at' => 'datetime',
             'transaction_type' => 'string',
             'public_remarks' => 'string',
-            'public_remarks_full' => 'string',
             'price' => 'decimal:2',
             'price_low' => 'decimal:2',
             'price_per_square_foot' => 'decimal:2',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Jobs\ImportRecentListings;
 use App\Models\Listing;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -24,6 +25,31 @@ test('import recent listings button queues job and sets notice', function (): vo
     Bus::assertDispatched(ImportRecentListings::class, function (ImportRecentListings $job): bool {
         return $job->pageSize === 50 && $job->maxPages === 200;
     });
+});
+
+test('import last 30 days button queues job with 30 day window', function (): void {
+    Bus::fake();
+
+    $now = CarbonImmutable::parse('2025-11-18 12:00:00', 'UTC');
+    CarbonImmutable::setTestNow($now);
+
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    Volt::test('admin.feeds.index')
+        ->call('importLastThirtyDaysForFlagging')
+        ->assertSet('notice', __('Last 30 days For Sale import queued'));
+
+    $expectedWindow = $now->subDays(30)->toIso8601String();
+
+    Bus::assertDispatched(ImportRecentListings::class, function (ImportRecentListings $job) use ($expectedWindow): bool {
+        return $job->pageSize === 100
+            && $job->maxPages === 1000
+            && $job->windowStartIso === $expectedWindow;
+    });
+
+    CarbonImmutable::setTestNow(); // reset
 });
 
 test('import recent listings imports idx and vow records from last 24 hours', function (): void {

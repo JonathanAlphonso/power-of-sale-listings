@@ -27,7 +27,7 @@ test('live 24h import button matches IDX API count', function (): void {
     $windowStart = $now->subDay();
 
     // 1) Enumerate live IDX records for the last 24h using the same cursor
-    // pattern as the job. This is our expected count.
+    // pattern as the job (ModificationTimestamp + ListingKey). This is our expected count.
     $top = 50;
     $cursorTs = $windowStart;
     $cursorKey = '0';
@@ -40,7 +40,7 @@ test('live 24h import button matches IDX API count', function (): void {
         $ts = $cursorTs->toIso8601String();
         $baseFilter = "TransactionType eq 'For Sale'";
         $cursorFilter = sprintf(
-            "OriginalEntryTimestamp gt %s or (OriginalEntryTimestamp eq %s and ListingKey gt '%s')",
+            "ModificationTimestamp gt %s or (ModificationTimestamp eq %s and ListingKey gt '%s')",
             $ts,
             $ts,
             str_replace("'", "''", $cursorKey === '' ? '0' : $cursorKey),
@@ -53,7 +53,7 @@ test('live 24h import button matches IDX API count', function (): void {
         $response = $request
             ->get('Property', [
                 '$filter' => $baseFilter.' and '.$cursorFilter,
-                '$orderby' => 'OriginalEntryTimestamp,ListingKey',
+                '$orderby' => 'ModificationTimestamp,ListingKey',
                 '$top' => $top,
             ]);
 
@@ -66,7 +66,7 @@ test('live 24h import button matches IDX API count', function (): void {
 
         if ($items !== []) {
             $last = end($items);
-            $tsStr = $last['OriginalEntryTimestamp'] ?? $last['ModificationTimestamp'] ?? null;
+            $tsStr = $last['ModificationTimestamp'] ?? $last['OriginalEntryTimestamp'] ?? null;
             $key = $last['ListingKey'] ?? null;
 
             if (is_string($tsStr) && $tsStr !== '' && is_string($key) && $key !== '') {

@@ -47,9 +47,15 @@ trait InteractsWithListingPayload
             $explicitListedAt = ListingDateResolver::parse($listedDateCandidate);
         }
 
+        $listingKey = $payload['ListingKey']
+            ?? $payload['listingKey']
+            ?? $payload['listing_key']
+            ?? $externalId;
+
         $attributes = [
             'source_id' => $sourceId,
             'municipality_id' => $municipalityId,
+            'listing_key' => $listingKey,
             'board_code' => $boardCode,
             'mls_number' => $mlsNumber,
             'status_code' => $payload['displayStatus'] ?? $payload['availability'] ?? null,
@@ -87,6 +93,7 @@ trait InteractsWithListingPayload
                 ? strtoupper((string) $payload['displayAddressYN']) === 'Y'
                 : true,
             'parcel_id' => $payload['parcelID'] ?? null,
+            'public_remarks' => $payload['publicRemarks'] ?? $payload['public_remarks'] ?? $payload['remarks'] ?? '',
             'modified_at' => isset($payload['modified'])
                 ? self::carbonOrNull((string) $payload['modified'])
                 : null,

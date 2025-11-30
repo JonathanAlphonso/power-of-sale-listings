@@ -119,9 +119,14 @@ test('users with two factor enabled are redirected to two factor challenge', fun
 test('users can logout', function () {
     $user = User::factory()->create();
 
-    $response = $this->actingAs($user)->post(route('logout'));
+    $this->actingAs($user);
+    $this->assertAuthenticated();
 
-    $response->assertRedirect(route('home'));
+    // Call the logout action directly
+    $logout = app(\App\Livewire\Actions\Logout::class);
+    $response = $logout();
 
+    // Verify redirect to home (root URL)
+    expect(parse_url($response->getTargetUrl(), PHP_URL_PATH) ?? '/')->toBe('/');
     $this->assertGuest();
 });

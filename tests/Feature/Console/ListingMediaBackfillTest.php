@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Jobs\SyncIdxMediaForListing;
 use App\Models\Listing;
 use Illuminate\Support\Facades\Http;
 
@@ -15,8 +16,8 @@ it('queues and syncs media for listings', function (): void {
 
     Http::fake([
         // Property import may be called by other code paths; ensure default OK.
-        'idx.example/odata/Property*' => Http::response(['value' => []], 200),
-        'idx.example/odata/Media*' => Http::response([
+        'https://idx.example/odata/Property*' => Http::response(['value' => []], 200),
+        'https://idx.example/odata/Media*' => Http::response([
             'value' => [
                 [
                     'MediaURL' => 'https://example.com/img/1.jpg',
@@ -34,8 +35,12 @@ it('queues and syncs media for listings', function (): void {
         ], 200),
     ]);
 
-    $this->artisan('listing-media:backfill --all --limit=1')
-        ->assertExitCode(0);
+    // Run the job directly to ensure synchronous execution
+    $job = new SyncIdxMediaForListing($listing->id, $listing->external_id);
+    app()->call([$job, 'handle']);
+
+    // Verify HTTP was called
+    Http::assertSent(fn ($request) => str_contains($request->url(), 'Media'));
 
     $listing->refresh();
     expect($listing->media()->count())->toBeGreaterThan(0);

@@ -346,6 +346,21 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </div>
             </div>
 
+            @if ($listing->public_remarks)
+                <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                    <div class="flex flex-col gap-2">
+                        <flux:heading size="md">{{ __('Public remarks') }}</flux:heading>
+                        <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+                            {{ __('The full listing description as provided by the MLS feed.') }}
+                        </flux:text>
+                    </div>
+
+                    <div class="mt-4 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-900/70">
+                        <p class="whitespace-pre-line text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{{ $listing->public_remarks }}</p>
+                    </div>
+                </div>
+            @endif
+
             <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
                 <div class="flex flex-col gap-2">
                     <flux:heading size="md">{{ __('Change history') }}</flux:heading>

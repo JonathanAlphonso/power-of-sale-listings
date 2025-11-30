@@ -71,6 +71,8 @@ class ResoSelects
         return implode(',', [
             'ListingKey',
             'OriginatingSystemName',
+            'SourceSystemName',
+            'ListAOR',
             'ListingId',
             'StandardStatus',
             'MlsStatus',

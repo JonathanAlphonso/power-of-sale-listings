@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "laravel-boost": {
+      "command": "/usr/bin/php8.3",
+      "args": [
+        "/mnt/c/Users/Jonathan/Projects/PHP/power-of-sales-ontario-db/artisan",
+        "boost:mcp"
+      ]
+    }
+  }
+}

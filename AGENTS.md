@@ -570,4 +570,38 @@ it('has emails', function (string $email) {
 -   Homepage demo uses a Power of Sale (PoS) remarks-based query via `IdxClient::fetchPowerOfSaleListings(4)`.
 -   Results are cached for 5 minutes (`idx.pos.listings.{limit}`); clear via `php artisan cache:clear` or `Cache::forget()`.
 
+=== database safety ===
+
+## Critical Database Rules
+
+**NEVER delete or flush users from the database** unless the user explicitly instructs you to do so. This includes:
+
+- Do not run `User::truncate()` or similar destructive commands
+- Do not run migrations that drop user data without explicit approval
+- When running tests, be aware that `RefreshDatabase` wipes the database - use `DatabaseTransactions` for tests that should preserve existing data
+- If users are accidentally deleted, immediately recreate an admin user:
+
+```php
+php artisan tinker --execute="
+\$user = \App\Models\User::create([
+    'name' => 'Admin',
+    'email' => 'admin@example.com',
+    'password' => bcrypt('password'),
+    'role' => \App\Enums\UserRole::Admin,
+    'email_verified_at' => now(),
+]);
+"
+```
+
+### Test Configuration
+
+- Tests in `tests/Feature/Live/` use `DatabaseTransactions` to preserve existing data
+- All other Feature tests use `RefreshDatabase` - be cautious when running these
+- When creating new test files in `tests/Feature/`, add them to the explicit list in `tests/Pest.php`
+
+### Admin User Reference
+
+- Default admin: `admin@example.com` with password `password`
+- Role enum: `App\Enums\UserRole::Admin`
+
 </laravel-boost-guidelines>

@@ -33,9 +33,12 @@ class ListingFactory extends Factory
         $pricePerSquareFoot = $squareFeet > 0 ? round($listPrice / $squareFeet, 2) : null;
         $daysOnMarket = fake()->numberBetween(0, 120);
 
+        $listingKey = strtoupper(fake()->bothify('LK-########'));
+
         return [
             'source_id' => Source::factory(),
             'municipality_id' => Municipality::factory(),
+            'listing_key' => $listingKey,
             'external_id' => "{$boardCode}-{$mlsNumber}",
             'board_code' => $boardCode,
             'mls_number' => $mlsNumber,
@@ -55,6 +58,7 @@ class ListingFactory extends Factory
             'neighbourhood' => fake()->optional()->secondaryAddress(),
             'postal_code' => fake()->postcode(),
             'province' => 'ON',
+            'public_remarks' => fake()->paragraph(),
             'latitude' => fake()->latitude(42.0, 45.5),
             'longitude' => fake()->longitude(-83.0, -78.0),
             'days_on_market' => $daysOnMarket,

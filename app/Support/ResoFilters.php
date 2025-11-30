@@ -7,6 +7,12 @@ namespace App\Support;
 class ResoFilters
 {
     /**
+     * Keywords that indicate Power of Sale.
+     *
+     * Note: We intentionally exclude abbreviations like "POS", "P.O.S" because
+     * these are almost always "Point of Sale" references in commercial listings,
+     * not "Power of Sale" foreclosure properties.
+     *
      * @return array<int, string>
      */
     public static function powerOfSaleKeywords(): array
@@ -18,11 +24,6 @@ class ResoFilters
             'POWER OF SALE',
             'Power-of-Sale',
             'Power-of-sale',
-            'P.O.S',
-            ' POS ',
-            ' POS,',
-            ' POS.',
-            ' POS-',
         ];
     }
 

@@ -382,9 +382,10 @@ new #[Layout('components.layouts.app')] class extends Component
         }
 
         // Chain to ensure the bulk import completes before media backfill runs
+        // Import listings modified in the last 30 days, flagging those with POS keywords
         try {
             Bus::chain([
-                new ImportAllPowerOfSaleFeeds(50, 200),
+                new ImportAllPowerOfSaleFeeds(pageSize: 100, maxPages: 500, days: 30),
                 new BackfillListingMedia,
             ])->dispatch();
 
@@ -943,7 +944,7 @@ new #[Layout('components.layouts.app')] class extends Component
     <div class="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
         <flux:heading size="sm" class="mb-2">{{ __('Power of Sale Replication') }}</flux:heading>
         <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
-            {{ __('Run a full replication of For Sale listings from IDX and VOW using timestamp and key cursors, then classify Power of Sale listings in-app from Public Remarks and backfill media.') }}
+            {{ __('Import For Sale listings from the last 30 days (IDX and VOW), flag those with Power of Sale keywords in Public Remarks, and sync media for matched listings.') }}
         </flux:text>
         <div class="mt-4 flex flex-wrap items-center gap-2">
             <flux:button
@@ -953,7 +954,7 @@ new #[Layout('components.layouts.app')] class extends Component
                 wire:target="importBoth"
                 wire:offline.attr="disabled"
             >
-                <span wire:loading.remove wire:target="importBoth">{{ __('Run PoS replication now') }}</span>
+                <span wire:loading.remove wire:target="importBoth">{{ __('Run POS Replication (Last 30 Days)') }}</span>
                 <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
                     <flux:icon name="arrow-path" class="animate-spin" />
                     {{ __('Importing…') }}

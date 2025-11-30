@@ -140,6 +140,18 @@
                         </div>
                     </dl>
                 </div>
+
+                @if ($listing->public_remarks)
+                    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70">
+                        <flux:heading size="md" class="mb-4">
+                            {{ __('Property description') }}
+                        </flux:heading>
+
+                        <div class="prose prose-slate max-w-none dark:prose-invert prose-p:text-slate-600 dark:prose-p:text-zinc-300">
+                            <p class="whitespace-pre-line text-sm leading-relaxed">{{ $listing->public_remarks }}</p>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="flex flex-col gap-6">

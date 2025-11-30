@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Models\ReplicationCursor;
 use App\Services\Idx\IdxClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
@@ -10,14 +9,25 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 
+/**
+ * Import Power of Sale listings from both IDX and VOW feeds.
+ *
+ * This job imports listings modified in the last N days (default: 30),
+ * filters for POS keywords in PublicRemarks, and syncs media.
+ */
 class ImportAllPowerOfSaleFeeds implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 1800;
+    public int $timeout = 3600; // 1 hour for both feeds
 
-    public function __construct(public int $pageSize = 500, public int $maxPages = 200) {}
+    public function __construct(
+        public int $pageSize = 100,
+        public int $maxPages = 500,
+        public int $days = 30,
+    ) {}
 
     /**
      * Prevent overlapping full imports to avoid duplicate work.
@@ -27,49 +37,69 @@ class ImportAllPowerOfSaleFeeds implements ShouldQueue
     public function middleware(): array
     {
         return [
-            // Keep overlap protection with a generous expiry to avoid duplicates,
-            // but allow re-queueing via stale detection in the UI if needed.
             (new \Illuminate\Queue\Middleware\WithoutOverlapping('pos-import-all'))->expireAfter($this->timeout),
         ];
     }
 
     public function handle(IdxClient $idx): void
     {
+        $windowStart = CarbonImmutable::now('UTC')->subDays($this->days);
+
         logger()->info('import_all_pos.started', [
             'page_size' => $this->pageSize,
             'max_pages' => $this->maxPages,
+            'days' => $this->days,
+            'window_start' => $windowStart->toIso8601String(),
             'timestamp' => now()->toIso8601String(),
         ]);
 
-        // Manual "Import Both" should start fresh and not be impacted by previous runs.
-        // Reset replication cursors so the importer starts from the beginning.
-        try {
-            ReplicationCursor::query()
-                ->whereIn('channel', ['idx.property.pos', 'vow.property.pos'])
-                ->update([
-                    'last_timestamp' => CarbonImmutable::create(1970, 1, 1, 0, 0, 0, 'UTC'),
-                    'last_key' => '0',
-                ]);
-            logger()->info('import_all_pos.cursors_reset');
-        } catch (\Throwable $e) {
-            logger()->warning('import_all_pos.cursor_reset_failed', ['error' => $e->getMessage()]);
-            // Best-effort; proceed even if cursor table missing
-        }
+        Cache::put('idx.import.pos', [
+            'status' => 'running',
+            'items_total' => 0,
+            'pages' => 0,
+            'started_at' => now()->toISOString(),
+            'window_days' => $this->days,
+        ], now()->addHours(2));
 
         try {
-            // Import IDX first (higher priority), then VOW
+            // Import IDX first (higher priority)
             logger()->info('import_all_pos.starting_idx');
-            (new ImportIdxPowerOfSale($this->pageSize, $this->maxPages))->handle($idx);
+            (new ImportPosLast30Days(
+                pageSize: $this->pageSize,
+                maxPages: $this->maxPages,
+                days: $this->days,
+                feed: 'idx',
+            ))->handle($idx);
 
+            // Then import VOW
             logger()->info('import_all_pos.starting_vow');
-            (new ImportVowPowerOfSale($this->pageSize, $this->maxPages))->handle($idx);
+            (new ImportPosLast30Days(
+                pageSize: $this->pageSize,
+                maxPages: $this->maxPages,
+                days: $this->days,
+                feed: 'vow',
+            ))->handle($idx);
 
             logger()->info('import_all_pos.completed');
+
+            Cache::put('idx.import.pos', [
+                'status' => 'completed',
+                'finished_at' => now()->toISOString(),
+                'window_days' => $this->days,
+            ], now()->addHours(2));
+
         } catch (\Throwable $e) {
             logger()->error('import_all_pos.failed', [
                 'error' => $e->getMessage(),
                 'type' => get_class($e),
             ]);
+
+            Cache::put('idx.import.pos', [
+                'status' => 'failed',
+                'error' => $e->getMessage(),
+                'finished_at' => now()->toISOString(),
+            ], now()->addHours(2));
+
             throw $e;
         }
     }

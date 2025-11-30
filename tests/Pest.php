@@ -11,9 +11,42 @@
 |
 */
 
+// Live tests use DatabaseTransactions to preserve existing data
+pest()->extend(Tests\TestCase::class)
+    ->use(Illuminate\Foundation\Testing\DatabaseTransactions::class)
+    ->in('Feature/Live');
+
+// Feature subdirectory tests use RefreshDatabase
 pest()->extend(Tests\TestCase::class)
     ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
-    ->in('Feature');
+    ->in(
+        'Feature/Admin',
+        'Feature/Auth',
+        'Feature/Console',
+        'Feature/Idx',
+        'Feature/Jobs',
+        'Feature/Livewire',
+        'Feature/Services',
+        'Feature/Settings',
+        'Feature/Volt',
+        // Root Feature tests - list each file pattern explicitly
+        'Feature/DashboardTest.php',
+        'Feature/DatabaseSeederTest.php',
+        'Feature/ExampleTest.php',
+        'Feature/HomepageComprehensiveTest.php',
+        'Feature/HomepageIdxListingsTest.php',
+        'Feature/HomepageLiveIdxFeedTest.php',
+        'Feature/IdxApiPowerOfSaleSmokeTest.php',
+        'Feature/IdxApiSmokeTest.php',
+        'Feature/IdxClientFiltersActiveListingsTest.php',
+        'Feature/IdxClientMediaRequestSelectTest.php',
+        'Feature/IdxClientRequestShapeTest.php',
+        'Feature/ImportFeedsSourcePriorityTest.php',
+        'Feature/ListingSchemaTest.php',
+        'Feature/ProcessListingPayloadTest.php',
+        'Feature/PublicListingsTest.php',
+        'Feature/WelcomePageProgressTest.php'
+    );
 
 /*
 |--------------------------------------------------------------------------

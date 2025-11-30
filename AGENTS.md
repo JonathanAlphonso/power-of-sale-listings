@@ -1,3 +1,5 @@
+<!-- ⚠️ CRITICAL: NEVER run tests with RefreshDatabase without explicit user approval - it WIPES the database including all users! -->
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

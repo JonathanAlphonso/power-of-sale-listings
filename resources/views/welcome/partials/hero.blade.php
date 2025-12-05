@@ -1,59 +1,68 @@
-<section id="hero" class="scroll-mt-28 lg:scroll-mt-32 relative z-0 overflow-hidden px-6 py-24 lg:px-8">
-    <div class="pointer-events-none absolute inset-0 -z-10">
-        <div class="absolute -left-40 top-[-18rem] h-[28rem] w-[28rem] rounded-full bg-[#ffeadb]/60 blur-3xl"></div>
-        <div class="absolute bottom-[-16rem] right-[-10rem] h-[30rem] w-[30rem] rounded-full bg-[#d5e6ff]/60 blur-3xl"></div>
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.08),_transparent_60%)]"></div>
+<section id="hero" class="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-32">
+    {{-- Background Effects --}}
+    <div class="absolute inset-0 -z-10">
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+        <div class="absolute left-1/2 right-0 top-0 -z-10 -ml-24 transform-gpu overflow-hidden blur-3xl lg:ml-24 xl:ml-48">
+            <div class="aspect-[801/1036] w-[50.0625rem] bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-30" style="clip-path: polygon(63.1% 29.5%, 100% 17.1%, 76.6% 3%, 48.4% 0%, 44.6% 4.7%, 54.5% 25.3%, 59.8% 49%, 55.2% 57.8%, 44.4% 57.2%, 27.8% 47.9%, 35.1% 81.5%, 0% 97.7%, 39.2% 100%, 35.2% 81.4%, 97.2% 52.8%, 63.1% 29.5%)"></div>
+        </div>
+        <div class="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-emerald-500/20 blur-[100px]"></div>
     </div>
 
-    <div class="relative z-10 mx-auto max-w-6xl">
-        <div class="relative overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/95 px-6 py-12 text-center shadow-[0_30px_90px_rgba(15,23,42,0.08)] sm:px-10 lg:px-16">
-            <div class="pointer-events-none absolute inset-y-0 left-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_left,_rgba(217,4,41,0.15),_transparent_55%)] sm:block"></div>
-            <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.14),_transparent_60%)] sm:block"></div>
-            <div class="relative">
-                <div class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600 shadow-sm">
-                    <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                    <span>M1 · Admin workspace hardening in progress</span>
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+        <div class="mx-auto max-w-4xl text-center">
+            <div class="mb-8 flex justify-center">
+                <div class="relative rounded-full px-3 py-1 text-sm leading-6 text-slate-600 ring-1 ring-slate-900/10 hover:ring-slate-900/20 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:ring-zinc-600">
+                    <span class="font-semibold text-emerald-600 dark:text-emerald-400">New</span> M1 Admin workspace hardening in progress. <a href="#roadmap" class="font-semibold text-emerald-600 dark:text-emerald-400"><span class="absolute inset-0" aria-hidden="true"></span>Read more <span aria-hidden="true">&rarr;</span></a>
                 </div>
-                <h1 class="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-                    Elevate Ontario power of sale discovery with Canadian precision
-                </h1>
-                <p class="mt-6 text-lg leading-relaxed text-slate-600 sm:text-xl">
-                    With the foundation milestone complete, we are now polishing the admin experience while crafting a Canada-first listings intelligence platform that blends lender disclosures, MLS feeds, and legal notices into a clean Ontario-focused dataset for investors, brokers, and compliance teams.
-                </p>
-                <div class="mt-6 flex flex-wrap justify-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                    <span class="rounded-full border border-red-200 bg-white px-3 py-1 text-red-500">Ontario MLS coverage</span>
-                    <span class="rounded-full border border-blue-200 bg-white px-3 py-1 text-blue-600">Canadian compliance ready</span>
-                    <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Bilingual data support</span>
-                </div>
-                <div class="mt-8 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                    <span>Trusted by teams in</span>
-                    <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-500">Toronto</span>
-                    <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-500">Ottawa</span>
-                    <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-500">Hamilton</span>
-                </div>
-                <div class="mt-10 flex flex-wrap justify-center gap-4">
-                    <a href="#roadmap" class="rounded-full bg-[#d90429] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#b90322]">Explore the roadmap</a>
-                    <a href="#pipeline" class="rounded-full border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#d90429] hover:text-[#d90429]">See the pipeline</a>
-                </div>
-                <dl class="mt-14 grid gap-6 text-left sm:grid-cols-3">
-                    <x-ui.card variant="red" padding="p-6" class="shadow-[0_15px_45px_rgba(217,4,41,0.12)]">
-                        <dt class="text-xs font-semibold uppercase tracking-[0.25em] text-red-500">Coverage</dt>
-                        <dd class="mt-3 text-3xl font-semibold text-slate-900">Province-wide</dd>
-                        <p class="mt-3 text-sm text-slate-600">Ingest MLS, lender disclosures, and public registry data into a unified Ontario timeline.</p>
-                    </x-ui.card>
+            </div>
+            
+            <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl dark:text-white">
+                Ontario power of sale intelligence, <span class="text-emerald-600 dark:text-emerald-400">simplified.</span>
+            </h1>
+            
+            <p class="mt-6 text-lg leading-8 text-slate-600 dark:text-zinc-400">
+                A Canada-first listings intelligence platform blending lender disclosures, MLS feeds, and legal notices into a clean, actionable dataset for investors and compliance teams.
+            </p>
+            
+            <div class="mt-10 flex items-center justify-center gap-x-6">
+                <a href="#roadmap" class="rounded-md bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">Explore Roadmap</a>
+                <a href="#pipeline" class="text-sm font-semibold leading-6 text-slate-900 dark:text-white">View Pipeline <span aria-hidden="true">→</span></a>
+            </div>
+        </div>
 
-                    <x-ui.card variant="blue" padding="p-6" class="shadow-[0_15px_45px_rgba(59,130,246,0.12)]">
-                        <dt class="text-xs font-semibold uppercase tracking-[0.25em] text-blue-500">Analytics</dt>
-                        <dd class="mt-3 text-3xl font-semibold text-slate-900">Market-grade</dd>
-                        <p class="mt-3 text-sm text-slate-600">Score properties, monitor market segments, and surface anomalies through curated dashboards.</p>
-                    </x-ui.card>
+        <div class="mt-16 flow-root sm:mt-24">
+            <div class="-m-2 rounded-xl bg-slate-900/5 p-2 ring-1 ring-inset ring-slate-900/10 lg:-m-4 lg:rounded-2xl lg:p-4 dark:bg-white/5 dark:ring-white/10">
+                <div class="grid grid-cols-1 gap-8 sm:grid-cols-3">
+                    {{-- Card 1 --}}
+                    <div class="relative overflow-hidden rounded-xl bg-white p-8 shadow-sm ring-1 ring-slate-200 transition hover:shadow-md dark:bg-zinc-900 dark:ring-zinc-800">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-red-50 blur-2xl dark:bg-red-900/20"></div>
+                        <dt class="text-sm font-semibold leading-6 text-slate-900 dark:text-white">
+                            <flux:icon.map class="mb-4 h-6 w-6 text-red-500" />
+                            Province-wide Coverage
+                        </dt>
+                        <dd class="mt-2 text-sm leading-6 text-slate-600 dark:text-zinc-400">Unified Ontario timeline from MLS, lender disclosures, and public registries.</dd>
+                    </div>
 
-                    <x-ui.card variant="emerald" padding="p-6" class="shadow-[0_15px_45px_rgba(16,185,129,0.12)]">
-                        <dt class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-500">Automation</dt>
-                        <dd class="mt-3 text-3xl font-semibold text-slate-900">Trusted</dd>
-                        <p class="mt-3 text-sm text-slate-600">Hardened ingestion jobs, feature flags, and SOC-driven workflows keep stakeholders confident.</p>
-                    </x-ui.card>
-                </dl>
+                    {{-- Card 2 --}}
+                    <div class="relative overflow-hidden rounded-xl bg-white p-8 shadow-sm ring-1 ring-slate-200 transition hover:shadow-md dark:bg-zinc-900 dark:ring-zinc-800">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-blue-50 blur-2xl dark:bg-blue-900/20"></div>
+                        <dt class="text-sm font-semibold leading-6 text-slate-900 dark:text-white">
+                            <flux:icon.chart-bar class="mb-4 h-6 w-6 text-blue-500" />
+                            Market-grade Analytics
+                        </dt>
+                        <dd class="mt-2 text-sm leading-6 text-slate-600 dark:text-zinc-400">Score properties and monitor segments with curated dashboards.</dd>
+                    </div>
+
+                    {{-- Card 3 --}}
+                    <div class="relative overflow-hidden rounded-xl bg-white p-8 shadow-sm ring-1 ring-slate-200 transition hover:shadow-md dark:bg-zinc-900 dark:ring-zinc-800">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-emerald-50 blur-2xl dark:bg-emerald-900/20"></div>
+                        <dt class="text-sm font-semibold leading-6 text-slate-900 dark:text-white">
+                            <flux:icon.shield-check class="mb-4 h-6 w-6 text-emerald-500" />
+                            Trusted Automation
+                        </dt>
+                        <dd class="mt-2 text-sm leading-6 text-slate-600 dark:text-zinc-400">SOC-driven workflows and hardened ingestion jobs for total confidence.</dd>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

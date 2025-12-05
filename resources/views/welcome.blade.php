@@ -1,5 +1,5 @@
 <x-layouts.site :title="config('app.name', 'Power of Sale Listings')">
-    <main class="bg-[#f6f8fb] text-slate-800">
+    <main>
         @include('welcome.partials.hero')
         @include('welcome.partials.product')
         @include('welcome.partials.roadmap')

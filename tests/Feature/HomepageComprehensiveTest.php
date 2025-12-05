@@ -85,3 +85,37 @@ it('falls back to active listings when PoS results are empty and fallback is ena
     $response->assertSeeText('456 King St W, Toronto, ON M5V 1L7');
     $response->assertSee('$599,999', false);
 });
+
+it('does not leak low-level database error details in non-local environments', function (): void {
+    config()->set('app.env', 'production');
+
+    $html = view('welcome.partials.database', [
+        'dbConnected' => false,
+        'databaseName' => 'example-db',
+        'tableSample' => ['users', 'listings'],
+        'userCount' => 10,
+        'dbErrorMessage' => 'SQLSTATE[HY000] Access denied for user',
+    ])->render();
+
+    expect($html)->toContain('Database diagnostics')
+        ->toContain('Unable to connect using the configured credentials.')
+        ->not->toContain('Access denied for user')
+        ->not->toContain('SHOW TABLES');
+});
+
+it('shows detailed database diagnostics, including errors, only in local environments', function (): void {
+    config()->set('app.env', 'local');
+
+    $html = view('welcome.partials.database', [
+        'dbConnected' => false,
+        'databaseName' => 'example-db',
+        'tableSample' => ['users', 'listings'],
+        'userCount' => 10,
+        'dbErrorMessage' => 'SQLSTATE[HY000] Access denied for user',
+    ])->render();
+
+    expect($html)->toContain('Database diagnostics')
+        ->toContain('Unable to connect using the configured credentials.')
+        ->toContain('Access denied for user');
+})
+    ->group('local-only');

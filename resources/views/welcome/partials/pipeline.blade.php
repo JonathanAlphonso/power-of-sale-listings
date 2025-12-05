@@ -1,9 +1,9 @@
-<section id="pipeline" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-gradient-to-b from-white via-[#f7fbff] to-[#fff5f5] px-6 py-24 lg:px-8">
+<section id="pipeline" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-slate-50 px-6 py-24 lg:px-8 dark:border-zinc-800 dark:bg-zinc-800/50">
     <div class="mx-auto max-w-6xl">
         <div class="max-w-3xl">
             <x-ui.section-badge>Workflow</x-ui.section-badge>
-            <h2 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Automation pipeline, end to end</h2>
-            <p class="mt-4 text-lg text-slate-600">Orchestrated jobs, clear ownership, and observability ensure every listing reaches the right team in record time.</p>
+            <h2 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-white">Automation pipeline, end to end</h2>
+            <p class="mt-4 text-lg text-slate-600 dark:text-zinc-400">Orchestrated jobs, clear ownership, and observability ensure every listing reaches the right team in record time.</p>
         </div>
         <div class="mt-12 grid gap-6 lg:grid-cols-4">
             <x-ui.pipeline-step number="01" title="Source & Capture" variant="red">

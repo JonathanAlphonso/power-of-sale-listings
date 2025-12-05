@@ -1,23 +1,23 @@
-<section id="idx-live-feed" class="scroll-mt-28 border-t border-slate-200 bg-white px-6 py-24 lg:px-8">
+<section id="idx-live-feed" class="scroll-mt-28 border-t border-slate-200 bg-white px-6 py-24 lg:px-8 dark:border-zinc-800 dark:bg-zinc-900">
     <div class="mx-auto max-w-6xl">
         <div class="flex flex-wrap items-center justify-between gap-6">
             <div>
                 <x-ui.section-badge>IDX API</x-ui.section-badge>
-                <h2 class="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Live IDX feed</h2>
-                <p class="mt-2 text-sm text-slate-600">A snapshot of the most recent listings streaming directly from Amplify&apos;s IDX API.</p>
+                <h2 class="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl dark:text-white">Live IDX feed</h2>
+                <p class="mt-2 text-sm text-slate-600 dark:text-zinc-400">A snapshot of the most recent listings streaming directly from Amplify&apos;s IDX API.</p>
             </div>
 
             @php
                 $statusClasses = 'text-xs font-semibold uppercase tracking-[0.35em]';
 
                 if (! $idxFeedEnabled) {
-                    $statusClasses .= ' text-red-500';
+                    $statusClasses .= ' text-red-500 dark:text-red-400';
                     $statusText = __('IDX credentials required');
                 } elseif ($idxListings->isEmpty()) {
-                    $statusClasses .= ' text-amber-500';
+                    $statusClasses .= ' text-amber-500 dark:text-amber-400';
                     $statusText = __('No live listings returned');
                 } else {
-                    $statusClasses .= ' text-emerald-500';
+                    $statusClasses .= ' text-emerald-500 dark:text-emerald-400';
                     $statusText = __('Connected to IDX');
                 }
             @endphp
@@ -54,11 +54,11 @@
                         $virtualTourUrl = $listing['virtual_tour_url'] ?? null;
                     @endphp
 
-                    <article class="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+                    <article class="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-800/50 dark:shadow-none">
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">{{ __('List price') }}</p>
-                                <p class="mt-1 text-2xl font-semibold text-slate-900">
+                                <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-zinc-500">{{ __('List price') }}</p>
+                                <p class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">
                                     {{ is_numeric($price) ? '$'.number_format((float) $price, 0) : __('N/A') }}
                                 </p>
                             </div>
@@ -72,14 +72,14 @@
                                 <img
                                     src="{{ $listing['image_url'] }}"
                                     alt="{{ $listing['address'] ?? __('Listing photo') }}"
-                                    class="aspect-[4/3] w-full rounded-2xl border border-slate-200 object-cover"
+                                    class="aspect-[4/3] w-full rounded-2xl border border-slate-200 object-cover dark:border-zinc-700"
                                     loading="lazy"
                                 />
                             </div>
                         @endif
 
-                        <div class="mt-6 space-y-2 text-sm text-slate-600">
-                            <h3 class="text-lg font-semibold text-slate-900">
+                        <div class="mt-6 space-y-2 text-sm text-slate-600 dark:text-zinc-400">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
                                 {{ $listing['address'] ?? __('Address unavailable') }}
                             </h3>
                             @if ($cityLine !== '')
@@ -87,23 +87,23 @@
                             @endif
 
                             @if ($propertySummary !== '')
-                                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-zinc-500">
                                     {{ $propertySummary }}
                                 </p>
                             @endif
 
                             @if ($listOffice)
-                                <p class="text-xs uppercase tracking-[0.25em] text-slate-500">
+                                <p class="text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-zinc-500">
                                     {{ __('Brokerage: :name', ['name' => $listOffice]) }}
                                 </p>
                             @endif
                         </div>
 
                         @if (is_string($remarks) && $remarks !== '')
-                            <p class="mt-6 flex-1 text-sm leading-relaxed text-slate-600">{{ $remarks }}</p>
+                            <p class="mt-6 flex-1 text-sm leading-relaxed text-slate-600 dark:text-zinc-400">{{ $remarks }}</p>
                         @endif
 
-                        <div class="mt-6 flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-500">
+                        <div class="mt-6 flex items-center justify-between text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-zinc-500">
                             <span>{{ $listing['listing_key'] ?? __('Listing key unavailable') }}</span>
                             <span>
                                 {{ $modifiedAt ? __('Updated :time', ['time' => $modifiedAt]) : __('Updated recently') }}
@@ -113,7 +113,7 @@
                         @if (is_string($virtualTourUrl) && $virtualTourUrl !== '')
                             <a
                                 href="{{ $virtualTourUrl }}"
-                                class="mt-4 inline-flex items-center text-sm font-semibold text-sky-600 hover:text-sky-500"
+                                class="mt-4 inline-flex items-center text-sm font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300"
                                 target="_blank"
                                 rel="noopener"
                             >
@@ -124,7 +124,7 @@
                 @endforeach
             </div>
         @else
-            <div class="mt-10 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+            <div class="mt-10 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-400">
                 {{ $idxFeedEnabled
                     ? __('IDX connection is available, but no listings were returned. Try broadening the query or confirm recent activity in Amplify.')
                     : __('Add your IDX credentials to the environment to preview live listings from Amplify.') }}

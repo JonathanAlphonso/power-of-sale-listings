@@ -45,7 +45,8 @@ pest()->extend(Tests\TestCase::class)
         'Feature/ListingSchemaTest.php',
         'Feature/ProcessListingPayloadTest.php',
         'Feature/PublicListingsTest.php',
-        'Feature/WelcomePageProgressTest.php'
+        'Feature/WelcomePageProgressTest.php',
+        'Feature/DebugDatabaseTest.php'
     );
 
 /*

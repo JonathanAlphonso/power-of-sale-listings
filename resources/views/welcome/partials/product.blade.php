@@ -1,54 +1,41 @@
-<section id="product" class="scroll-mt-28 lg:scroll-mt-32 border-t border-slate-200 bg-gradient-to-br from-white via-[#fff5f5] to-[#f3f7ff] px-6 py-24 lg:px-8">
-    <div class="mx-auto max-w-6xl">
-        <div class="grid gap-12 lg:grid-cols-[1.25fr_1fr] lg:items-center">
-            <div class="space-y-6">
-                <x-ui.section-badge>Platform</x-ui.section-badge>
-                <h2 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Purpose-built for lenders, brokers, and compliance</h2>
-                <p class="text-lg text-slate-600">We blend dedicated ingestion jobs, Volt-driven review workflows, and real-time monitoring to surface power of sale insights precisely when your team needs them.</p>
-                                <ul class="space-y-4 text-sm text-slate-600">
-                    <li class="flex items-start gap-3">
-                        <flux:icon.check-badge class="mt-0.5 shrink-0 text-red-500"/>
-                        <div>
-                            <p class="font-semibold text-slate-900">Canadian-first ingestion</p>
-                            <p>Curated MLS boards, lender disclosures, and legal notices, normalized to Ontario's regulatory landscape.</p>
-                        </div>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <flux:icon.shield-check class="mt-0.5 shrink-0 text-blue-500"/>
-                        <div>
-                            <p class="font-semibold text-slate-900">Audit-ready history</p>
-                            <p>Every change, from status updates to pricing adjustments, captured with payloads and timestamps for discovery.</p>
-                        </div>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <flux:icon.sparkles class="mt-0.5 shrink-0 text-emerald-500"/>
-                        <div>
-                            <p class="font-semibold text-slate-900">Operational velocity</p>
-                            <p>Flux UI dashboards, queue monitoring, and notifications keep analysts, brokers, and counsel synchronous.</p>
-                        </div>
-                    </li>
-                </ul>
-            </div>
-            <div class="relative mx-auto flex w-full max-w-md flex-col overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white shadow-[0_25px_80px_rgba(15,23,42,0.1)]">
-                <div class="absolute inset-x-6 top-6 z-10 flex items-center justify-between rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-                    <span>Admin workspace</span>
-                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-red-600">Volt + Flux</span>
-                </div>
-                <img
-                    src="https://images.unsplash.com/photo-1474631245212-32dc3c8310c6?auto=format&fit=crop&w=1280&q=80"
-                    alt="Listings workspace preview"
-                    class="h-[520px] w-full object-cover"
-                />
-                <div class="relative space-y-3 bg-white px-6 py-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Review queues, filters, and provenance</h3>
-                    <p class="text-sm text-slate-600">
-                        Analysts triage new power of sale listings, verify payloads, and dispatch notifications with guardrails for SOC readiness.
+<section id="product" class="scroll-mt-28 lg:scroll-mt-32 py-24 sm:py-32 bg-slate-50 dark:bg-zinc-800/50">
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+        <div class="grid grid-cols-1 gap-y-16 gap-x-8 lg:grid-cols-2 lg:items-center">
+            <div class="lg:pr-8">
+                <div class="max-w-lg">
+                    <h2 class="text-base font-semibold leading-7 text-emerald-600 dark:text-emerald-400">Platform</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl dark:text-white">Purpose-built for lenders, brokers, and compliance</p>
+                    <p class="mt-6 text-lg leading-8 text-slate-600 dark:text-zinc-400">
+                        We blend dedicated ingestion jobs, Volt-driven review workflows, and real-time monitoring to surface power of sale insights precisely when your team needs them.
                     </p>
-                    <div class="grid grid-cols-3 gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                        <span class="rounded-full border border-red-100 bg-red-50 px-3 py-2 text-center text-red-600">Ingestion</span>
-                        <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-2 text-center text-blue-600">Enrichment</span>
-                        <span class="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-2 text-center text-emerald-600">Compliance</span>
-                    </div>
+                    <dl class="mt-10 max-w-xl space-y-8 text-base leading-7 text-slate-600 dark:text-zinc-400">
+                        <div class="relative pl-9">
+                            <dt class="inline font-semibold text-slate-900 dark:text-white">
+                                <flux:icon.check-badge class="absolute left-1 top-1 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                Canadian-first ingestion.
+                            </dt>
+                            <dd class="inline">Curated MLS boards, lender disclosures, and legal notices, normalized to Ontario's regulatory landscape.</dd>
+                        </div>
+                        <div class="relative pl-9">
+                            <dt class="inline font-semibold text-slate-900 dark:text-white">
+                                <flux:icon.shield-check class="absolute left-1 top-1 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                Audit-ready history.
+                            </dt>
+                            <dd class="inline">Every change, from status updates to pricing adjustments, captured with payloads and timestamps for discovery.</dd>
+                        </div>
+                        <div class="relative pl-9">
+                            <dt class="inline font-semibold text-slate-900 dark:text-white">
+                                <flux:icon.sparkles class="absolute left-1 top-1 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                Operational velocity.
+                            </dt>
+                            <dd class="inline">Flux UI dashboards, queue monitoring, and notifications keep analysts, brokers, and counsel synchronous.</dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+            <div class="relative">
+                <div class="relative rounded-xl bg-slate-900/5 p-2 ring-1 ring-inset ring-slate-900/10 lg:-m-4 lg:rounded-2xl lg:p-4 dark:bg-white/5 dark:ring-white/10">
+                    <img src="https://images.unsplash.com/photo-1474631245212-32dc3c8310c6?auto=format&fit=crop&w=1280&q=80" alt="App screenshot" class="w-[48rem] max-w-none rounded-xl shadow-xl ring-1 ring-slate-400/10 sm:w-[57rem] md:-ml-4 lg:-ml-0" width="2432" height="1442">
                 </div>
             </div>
         </div>

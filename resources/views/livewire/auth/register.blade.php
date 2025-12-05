@@ -19,6 +19,10 @@ new #[Layout('components.layouts.auth')] class extends Component {
      */
     public function register(): void
     {
+        if (! \Laravel\Fortify\Features::enabled(\Laravel\Fortify\Features::registration())) {
+            abort(404);
+        }
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],

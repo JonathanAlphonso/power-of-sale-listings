@@ -3,6 +3,7 @@
 use App\Jobs\BackfillListingMedia;
 use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Jobs\ImportIdxPowerOfSale;
+use App\Jobs\ImportMlsListings;
 use App\Jobs\ImportRecentListings;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Models\Listing;
@@ -17,12 +18,22 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('components.layouts.app')] class extends Component
 {
+    use WithFileUploads;
+
+    private const MIN_REPLICATION_DAYS = 30;
+    private const MAX_REPLICATION_DAYS = 360;
+    private const MAX_MLS_IDS_PER_IMPORT = 500;
+    private const MAX_CSV_FILE_SIZE_KB = 102400; // 100MB
+
     public bool $tested = false;
 
     public bool $connected = false;
+
+    public int $posReplicationDays = 30;
 
     #[Url]
     public string $notice = '';
@@ -33,6 +44,12 @@ new #[Layout('components.layouts.app')] class extends Component
     public ?int $requestMs = null;
 
     public int $previewImageCount = 0;
+
+    public string $mlsInput = '';
+
+    public $mlsCsvFile = null;
+
+    public string $csvParseError = '';
 
     /** @var array{configured: bool, base: string, tokenSet: bool, status: int|null, items: int|null, size: int|null, firstKeys: array<int,string>, error: string|null, checkedAt: string|null, fallback?: bool} */
     public array $idxCheck = [
@@ -384,8 +401,18 @@ new #[Layout('components.layouts.app')] class extends Component
         // Chain to ensure the bulk import completes before media backfill runs
         // Import listings modified in the last 30 days, flagging those with POS keywords
         try {
+            $windowDays = $this->posReplicationDays;
+
+            if ($windowDays < self::MIN_REPLICATION_DAYS) {
+                $windowDays = self::MIN_REPLICATION_DAYS;
+            } elseif ($windowDays > self::MAX_REPLICATION_DAYS) {
+                $windowDays = self::MAX_REPLICATION_DAYS;
+            }
+
+            $this->posReplicationDays = $windowDays;
+
             Bus::chain([
-                new ImportAllPowerOfSaleFeeds(pageSize: 100, maxPages: 500, days: 30),
+                new ImportAllPowerOfSaleFeeds(pageSize: 100, maxPages: 500, days: $windowDays),
                 new BackfillListingMedia,
             ])->dispatch();
 
@@ -705,6 +732,101 @@ new #[Layout('components.layouts.app')] class extends Component
         $this->redirect(route('admin.feeds.index'));
     }
 
+    public function importMlsIds(): void
+    {
+        $this->csvParseError = '';
+
+        // Validate file upload if present
+        if ($this->mlsCsvFile !== null) {
+            $this->validate([
+                'mlsCsvFile' => ['file', 'mimes:csv,txt', 'max:' . self::MAX_CSV_FILE_SIZE_KB],
+            ]);
+        }
+
+        $mlsIds = $this->parseMlsIds();
+
+        if ($this->csvParseError !== '') {
+            $this->notice = $this->csvParseError;
+            $this->dispatch('feeds:notice', notice: $this->notice);
+            return;
+        }
+
+        if (empty($mlsIds)) {
+            $this->notice = __('No valid MLS IDs provided.');
+            $this->dispatch('feeds:notice', notice: $this->notice);
+            return;
+        }
+
+        if (count($mlsIds) > self::MAX_MLS_IDS_PER_IMPORT) {
+            $this->notice = __('Maximum :max MLS IDs allowed per import.', ['max' => self::MAX_MLS_IDS_PER_IMPORT]);
+            $this->dispatch('feeds:notice', notice: $this->notice);
+            return;
+        }
+
+        try {
+            ImportMlsListings::dispatch($mlsIds);
+            logger()->info('feeds.import_mls_queued', [
+                'ts' => now()->toIso8601String(),
+                'count' => count($mlsIds),
+                'queue' => (string) config('queue.default'),
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('feeds.import_mls_failed_to_queue', ['error' => $e->getMessage()]);
+            $this->notice = __('Failed to queue MLS import: :msg', ['msg' => $e->getMessage()]);
+            $this->dispatch('feeds:notice', notice: $this->notice);
+            return;
+        }
+
+        $this->mlsInput = '';
+        $this->mlsCsvFile = null;
+        $this->notice = trans_choice(':n MLS ID queued for import.|:n MLS IDs queued for import.', count($mlsIds), ['n' => count($mlsIds)]);
+        $this->dispatch('feeds:notice', notice: $this->notice);
+    }
+
+    private function parseMlsIds(): array
+    {
+        $ids = [];
+
+        // Parse from textarea
+        if (trim($this->mlsInput) !== '') {
+            $lines = preg_split('/[\r\n,;]+/', $this->mlsInput);
+            foreach ($lines as $line) {
+                $cleaned = trim((string) $line);
+                if ($cleaned !== '' && strlen($cleaned) <= 32) {
+                    $ids[] = $cleaned;
+                }
+            }
+        }
+
+        // Parse from CSV file
+        if ($this->mlsCsvFile !== null) {
+            try {
+                $content = file_get_contents($this->mlsCsvFile->getRealPath());
+                if ($content === false) {
+                    $this->csvParseError = __('Failed to read uploaded CSV file.');
+                    logger()->warning('feeds.mls_csv_read_failed');
+                    return $ids;
+                }
+
+                $lines = preg_split('/[\r\n,;]+/', $content);
+                foreach ($lines as $line) {
+                    $cleaned = trim((string) $line);
+                    // Skip header rows and empty lines
+                    if ($cleaned !== '' && strlen($cleaned) <= 32 && !preg_match('/^(mls|id|listing|number)/i', $cleaned)) {
+                        $ids[] = $cleaned;
+                    }
+                }
+            } catch (\Throwable $e) {
+                $this->csvParseError = __('Failed to parse CSV file: :msg', ['msg' => $e->getMessage()]);
+                logger()->warning('feeds.mls_csv_parse_error', ['error' => $e->getMessage()]);
+                return $ids;
+            }
+        }
+
+        // Remove duplicates and return unique IDs
+        return array_values(array_unique(array_filter($ids)));
+    }
+
     private function buildConfigCheck(string $name): array
     {
         $base = (string) config("services.{$name}.base_uri", '');
@@ -944,9 +1066,21 @@ new #[Layout('components.layouts.app')] class extends Component
     <div class="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
         <flux:heading size="sm" class="mb-2">{{ __('Power of Sale Replication') }}</flux:heading>
         <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
-            {{ __('Import For Sale listings from the last 30 days (IDX and VOW), flag those with Power of Sale keywords in Public Remarks, and sync media for matched listings.') }}
+            {{ __('Import For Sale listings from the selected window (IDX and VOW), flag those with Power of Sale keywords in Public Remarks, and sync media for matched listings.') }}
         </flux:text>
         <div class="mt-4 flex flex-wrap items-center gap-2">
+            <flux:select
+                wire:model.live="posReplicationDays"
+                :label="__('Days to import')"
+                class="w-40"
+            >
+                @foreach (range(30, 360, 30) as $days)
+                    <flux:select.option value="{{ $days }}">
+                        {{ $days }} {{ __('days') }}
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
+
             <flux:button
                 icon="arrows-right-left"
                 wire:click="importBoth"
@@ -954,13 +1088,117 @@ new #[Layout('components.layouts.app')] class extends Component
                 wire:target="importBoth"
                 wire:offline.attr="disabled"
             >
-                <span wire:loading.remove wire:target="importBoth">{{ __('Run POS Replication (Last 30 Days)') }}</span>
+                <span wire:loading.remove wire:target="importBoth">
+                    {{ __('Run POS Replication (:days days)', ['days' => $posReplicationDays]) }}
+                </span>
                 <span wire:loading wire:target="importBoth" class="inline-flex items-center gap-2">
                     <flux:icon name="arrow-path" class="animate-spin" />
                     {{ __('Importing…') }}
                 </span>
                 <span wire:offline class="text-red-500">{{ __('Offline') }}</span>
             </flux:button>
+        </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+        <flux:heading size="sm" class="mb-2">{{ __('Import by MLS Number') }}</flux:heading>
+        <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
+            {{ __('Import specific listings by their MLS numbers. Enter one MLS ID per line, or upload a CSV file.') }}
+        </flux:text>
+
+        <div class="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+            <flux:heading size="xs" class="mb-2 text-zinc-700 dark:text-zinc-300">{{ __('How to use') }}</flux:heading>
+            <ul class="list-inside list-disc space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                <li>{{ __('Enter MLS numbers in the text area below, one per line') }}</li>
+                <li>{{ __('Or upload a CSV/text file with one MLS number per line') }}</li>
+                <li>{{ __('You can also use comma or semicolon separators') }}</li>
+                <li>{{ __('Maximum 500 MLS IDs per import') }}</li>
+                <li>{{ __('Duplicates are automatically removed') }}</li>
+            </ul>
+
+            <div class="mt-3">
+                <flux:heading size="xs" class="mb-1 text-zinc-700 dark:text-zinc-300">{{ __('Example MLS numbers') }}</flux:heading>
+                <code class="block rounded bg-zinc-100 px-3 py-2 font-mono text-xs text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">X1234567
+W5678901
+C9012345
+E4567890</code>
+            </div>
+        </div>
+
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+                <label for="mlsInput" class="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {{ __('MLS Numbers (one per line)') }}
+                </label>
+                <textarea
+                    id="mlsInput"
+                    wire:model="mlsInput"
+                    rows="8"
+                    class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+                    placeholder="X1234567&#10;W5678901&#10;C9012345"
+                ></textarea>
+            </div>
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {{ __('Or upload CSV file') }}
+                </label>
+                <div
+                    x-data="{ dragging: false }"
+                    x-on:dragover.prevent="dragging = true"
+                    x-on:dragleave.prevent="dragging = false"
+                    x-on:drop.prevent="dragging = false; $refs.fileInput.files = $event.dataTransfer.files; $refs.fileInput.dispatchEvent(new Event('change'))"
+                    :class="{ 'border-zinc-500 bg-zinc-100 dark:bg-zinc-700': dragging }"
+                    class="flex h-[200px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:bg-zinc-700/50"
+                >
+                    <label for="mlsCsvFile" class="flex h-full w-full cursor-pointer flex-col items-center justify-center">
+                        <flux:icon name="document-arrow-up" class="mb-2 h-10 w-10 text-zinc-400" />
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">{{ __('Drop CSV file here or click to browse') }}</span>
+                        <span class="mt-1 text-xs text-zinc-500">{{ __('.csv, .txt files accepted') }}</span>
+                        @if($mlsCsvFile)
+                            <span class="mt-2 rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                {{ $mlsCsvFile->getClientOriginalName() }}
+                            </span>
+                        @endif
+                    </label>
+                    <input
+                        x-ref="fileInput"
+                        type="file"
+                        id="mlsCsvFile"
+                        wire:model="mlsCsvFile"
+                        accept=".csv,.txt"
+                        class="hidden"
+                    />
+                </div>
+                @error('mlsCsvFile')
+                    <span class="mt-1 text-xs text-red-600">{{ $message }}</span>
+                @enderror
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+            <flux:button
+                variant="primary"
+                icon="arrow-down-tray"
+                wire:click="importMlsIds"
+                wire:loading.attr="disabled"
+                wire:target="importMlsIds"
+            >
+                <span wire:loading.remove wire:target="importMlsIds">{{ __('Import MLS Listings') }}</span>
+                <span wire:loading wire:target="importMlsIds" class="inline-flex items-center gap-2">
+                    <flux:icon name="arrow-path" class="animate-spin" />
+                    {{ __('Queuing…') }}
+                </span>
+            </flux:button>
+
+            @if($mlsInput || $mlsCsvFile)
+                <flux:button
+                    variant="ghost"
+                    wire:click="$set('mlsInput', ''); $set('mlsCsvFile', null)"
+                >
+                    {{ __('Clear') }}
+                </flux:button>
+            @endif
         </div>
     </div>
 

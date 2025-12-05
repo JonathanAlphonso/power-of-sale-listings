@@ -17,8 +17,10 @@ it('renders admin feeds page', function (): void {
     $this->get('/admin/feeds')
         ->assertOk()
         ->assertSee('Data Feeds')
+        ->assertSee('Days to import')
         ->assertSee('IDX / PropTx Status')
         ->assertSee('VOW / PropTx Status')
         ->assertSee('Test IDX (30)')
-        ->assertSee('Test VOW (30)');
+        ->assertSee('Test VOW (30)')
+        ->assertSee('Run POS Replication (30 days)');
 });

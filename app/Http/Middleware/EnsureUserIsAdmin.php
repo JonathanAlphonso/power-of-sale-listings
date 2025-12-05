@@ -38,9 +38,13 @@ class EnsureUserIsAdmin
                 abort(403);
             }
 
-            $user->forceFill([
-                'role' => UserRole::Admin,
-            ])->save();
+            if (config('app.debug') && config('app.env') === 'local') {
+                $user->forceFill([
+                    'role' => UserRole::Admin,
+                ])->save();
+            } else {
+                abort(403);
+            }
         }
 
         Gate::authorize('access-admin-area');

@@ -27,6 +27,10 @@ class DatabaseSeeder extends Seeder
 
     private function seedUsers(): void
     {
+        if (! app()->environment('local')) {
+            return;
+        }
+
         collect([
             [
                 'name' => 'Administrator',

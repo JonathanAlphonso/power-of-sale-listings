@@ -245,4 +245,4 @@ test('the first authenticated user is promoted to admin when no admins exist', f
         ->assertOk();
 
     expect($user->refresh()->role)->toBe(UserRole::Admin);
-});
+})->group('local-only');

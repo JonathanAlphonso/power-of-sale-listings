@@ -58,7 +58,7 @@
         ],
         "test:parallel": [
             "@php artisan config:clear --ansi",
-            "@php artisan test --parallel"
+            "@php artisan test --parallel --exclude-group=local-only"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

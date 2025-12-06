@@ -15,7 +15,7 @@ it('renders core homepage sections', function (): void {
     $response->assertOk();
 
     // Hero + primary sections
-    $response->assertSeeText('Elevate Ontario power of sale discovery');
+    $response->assertSeeText('Ontario power of sale intelligence,');
     $response->assertSeeText('Automation pipeline, end to end');
     $response->assertSeeText('Database diagnostics');
     $response->assertSeeText('Live IDX feed');

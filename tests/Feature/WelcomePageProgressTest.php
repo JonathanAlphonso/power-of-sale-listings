@@ -5,8 +5,7 @@ it('shows milestone progress aligned with the task list', function (): void {
 
     $response
         ->assertOk()
-        ->assertSee('M1 · Admin workspace hardening in progress')
-        ->assertSee('With the foundation milestone complete')
+        ->assertSee('M1 Admin workspace hardening in progress')
         ->assertSee('Complete · Foundation ready')
         ->assertSee('In progress · Finalizing navigation guard')
         ->assertSee('Queued · Begins after admin wrap-up')

@@ -1132,7 +1132,7 @@ E4567890</code>
                 </label>
                 <textarea
                     id="mlsInput"
-                    wire:model="mlsInput"
+                    wire:model.blur="mlsInput"
                     rows="8"
                     class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
                     placeholder="X1234567&#10;W5678901&#10;C9012345"

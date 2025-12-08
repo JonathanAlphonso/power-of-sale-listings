@@ -39,7 +39,7 @@
 -   [x] Add retry, backoff, and rollback controls for failed API synchronisations; ensure idempotency on reprocessing.
 -   [x] Write queue job, API client, and dashboard tests covering happy paths, validation errors, and duplicate detection.
 -   [x] Document PropTx integration workflow (API endpoints, rate limits, error codes) in runbook.
--   [ ] Rework Power-of-Sale detection: replicate all `TransactionType='For Sale'` listings, normalize remarks locally, and classify PoS in-app per `Docs/POWER_OF_SALE_REPLICATION_GUIDE.md`.
+-   [x] Rework Power-of-Sale detection: replicate all `TransactionType='For Sale'` listings, normalize remarks locally, and classify PoS in-app (see `ImportPosLast30Days` job).
 
 ## M2.1 – Listing Media Ingestion & Storage
 

@@ -5,20 +5,13 @@
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         <flux:sidebar sticky stashable class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-            @php
-                $currentUser = auth()->user();
-                $homeRoute = $currentUser?->isAdmin()
-                    ? route('dashboard', absolute: false)
-                    : route('home', absolute: false);
-            @endphp
-
             <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-            <a href="{{ $homeRoute }}" class="me-5 flex items-center space-x-2 rtl:space-x-reverse" wire:navigate>
+            <a href="{{ route('home') }}" class="me-5 flex items-center space-x-2 rtl:space-x-reverse">
                 <x-app-logo />
             </a>
 
-            @if ($currentUser?->isAdmin())
+            @if (auth()->user()?->isAdmin())
                 <flux:navlist variant="outline">
                     <flux:navlist.group :heading="__('Platform')" class="grid">
                         <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>

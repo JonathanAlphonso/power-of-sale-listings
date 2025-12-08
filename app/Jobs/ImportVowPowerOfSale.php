@@ -330,7 +330,9 @@ class ImportVowPowerOfSale implements ShouldQueue
         $attrs = $transformer->transform($raw);
 
         $boardCode = BoardCode::fromSystemName(
-            Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName')
+            Arr::get($raw, 'OriginatingSystemName')
+                ?? Arr::get($raw, 'SourceSystemName')
+                ?? Arr::get($raw, 'ListAOR')
         );
         $mlsNumber = Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key;
 

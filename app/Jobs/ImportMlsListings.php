@@ -91,9 +91,9 @@ class ImportMlsListings implements ShouldQueue
                     }
                 }
 
-                // Track which MLS IDs were not found
+                // Track which MLS IDs were not found (using ListingKey since that's what we filter by)
                 $foundMls = array_map(
-                    fn ($r) => is_array($r) ? (string) (Arr::get($r, 'ListingId') ?? Arr::get($r, 'MLSNumber') ?? '') : '',
+                    fn ($r) => is_array($r) ? (string) (Arr::get($r, 'ListingKey') ?? '') : '',
                     $results
                 );
                 $foundMls = array_filter($foundMls);
@@ -140,11 +140,12 @@ class ImportMlsListings implements ShouldQueue
 
         $select = ResoSelects::propertyPowerOfSaleImport();
 
-        // Build OData filter: ListingId eq 'X123' or ListingId eq 'X456' ...
+        // Build OData filter: ListingKey eq 'X123' or ListingKey eq 'X456' ...
+        // Note: ListingId is not filterable in the API, but ListingKey is
         $filterParts = array_map(function (string $mls) {
             $escaped = str_replace("'", "''", $mls);
 
-            return "ListingId eq '{$escaped}'";
+            return "ListingKey eq '{$escaped}'";
         }, $mlsNumbers);
 
         $filter = implode(' or ', $filterParts);
@@ -205,7 +206,9 @@ class ImportMlsListings implements ShouldQueue
         $attrs = $transformer->transform($raw);
 
         $boardCode = BoardCode::fromSystemName(
-            Arr::get($raw, 'OriginatingSystemName') ?? Arr::get($raw, 'SourceSystemName')
+            Arr::get($raw, 'OriginatingSystemName')
+                ?? Arr::get($raw, 'SourceSystemName')
+                ?? Arr::get($raw, 'ListAOR')
         );
         $mlsNumber = Arr::get($raw, 'ListingId') ?? Arr::get($raw, 'MLSNumber') ?? $key;
 

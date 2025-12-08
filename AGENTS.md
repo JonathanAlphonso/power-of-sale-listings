@@ -547,3 +547,12 @@ it('has emails', function (string $email) {
 - Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
 - Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test` with a specific filename or filter.
 </laravel-boost-guidelines>
+
+## MLS Listing Data
+
+- **board_code must NEVER be empty** for listing data
+- The board ID is always available in one of these 3 API response fields:
+  - `ListAOR`
+  - `OriginatingSystemName`
+  - `SourceSystemName`
+- Example: `"ListAOR": "Toronto Regional Real Estate Board"`

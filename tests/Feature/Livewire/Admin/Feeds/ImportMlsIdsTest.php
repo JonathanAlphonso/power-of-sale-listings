@@ -179,7 +179,7 @@ test('import mls ids filters empty lines', function (): void {
 
 test('import mls listings job creates listings in database', function (): void {
     Http::fake([
-        '*/Property*' => Http::response([
+        '*Property*' => Http::response([
             '@odata.context' => '$metadata#Property',
             'value' => [
                 [
@@ -226,7 +226,7 @@ test('import mls listings job creates listings in database', function (): void {
                 ],
             ],
         ]),
-        '*/Media*' => Http::response(['value' => []]),
+        '*Media*' => Http::response(['value' => []]),
     ]);
 
     $job = new ImportMlsListings(['X1234567', 'W5678901', 'C9012345']);
@@ -254,7 +254,7 @@ test('import mls listings job creates listings in database', function (): void {
 
 test('import mls listings job uses ListingKey for API filter', function (): void {
     Http::fake([
-        '*/Property*' => Http::response([
+        '*Property*' => Http::response([
             '@odata.context' => '$metadata#Property',
             'value' => [],
         ]),

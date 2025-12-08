@@ -114,6 +114,89 @@ GitHub Actions workflows (`.github/workflows/`) enforce these steps on `develop`
 - **tests.yml:** installs dependencies, builds assets, and runs `composer test`.
 - **lint.yml:** installs dependencies and runs `vendor/bin/pint --dirty`.
 
+## Production Deployment
+
+This project is designed for deployment via [Laravel Forge](https://forge.laravel.com) on a cloud provider such as DigitalOcean, Vultr, or AWS.
+
+### Server Requirements
+
+| Resource | Minimum |
+| --- | --- |
+| RAM | 2 GB |
+| PHP | 8.3+ |
+| MySQL | 8.0+ |
+| Node.js | 20.x (for asset building) |
+| Redis | Optional but recommended for queue/cache |
+
+### Forge Server Setup
+
+1. Provision a new server in Forge with PHP 8.3 and MySQL 8.
+2. Add your site with the repository URL.
+3. Enable **Quick Deploy** to auto-deploy on push to `main`.
+4. Run `php artisan storage:link` via Forge's command panel.
+
+### Queue Workers
+
+Configure workers in Forge under **Site → Queue**:
+
+| Setting | Value |
+| --- | --- |
+| Connection | `database` (or `redis`) |
+| Queue | `default,media` |
+| Timeout | `3600` |
+| Sleep | `3` |
+| Tries | `3` |
+| Processes | `1` |
+
+For heavy media processing, add a second worker dedicated to the `media` queue.
+
+### Deployment Script
+
+Use this script in Forge's deployment settings:
+
+```bash
+cd /home/forge/yourdomain.com
+git pull origin main
+
+composer install --no-dev --optimize-autoloader
+
+npm ci
+npm run build
+
+php artisan migrate --force
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan storage:link
+php artisan queue:restart
+```
+
+### Production Environment Variables
+
+Ensure these are set in Forge's environment panel:
+
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://yourdomain.com
+
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+
+IDX_BASE_URI=https://query.ampre.ca/odata/
+IDX_TOKEN=your-proptx-token
+
+MEDIA_AUTO_DOWNLOAD=true
+```
+
+### Post-Deployment Checklist
+
+- [ ] SSL certificate active (Forge provisions Let's Encrypt automatically)
+- [ ] Queue worker running (check **Queue** tab in Forge)
+- [ ] Storage symlink created (`public/storage` → `storage/app/public`)
+- [ ] Migrations applied without errors
+- [ ] Site accessible via HTTPS
+
 ## Troubleshooting
 
 Quick fixes for the most common issues. For a deeper playbook covering deployment and CI, refer to [`docs/runbook.md`](docs/runbook.md).

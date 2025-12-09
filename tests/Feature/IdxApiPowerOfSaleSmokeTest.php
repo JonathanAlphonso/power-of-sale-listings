@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+uses()->group('local-only');
+
 use App\Services\Idx\IdxClient;
 use Carbon\CarbonImmutable;
 

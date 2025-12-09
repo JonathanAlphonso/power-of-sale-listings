@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+uses()->group('local-only');
+
 use App\Jobs\ImportRecentListings;
 use App\Models\Listing;
 use App\Models\Source;
 use App\Services\Idx\IdxClient;
+use App\Services\Idx\ListingUpserter;
 use App\Services\Idx\RequestFactory;
 use Carbon\CarbonImmutable;
 
@@ -58,7 +61,7 @@ it('imports 30 day for-sale listings in line with live IDX count', function (): 
 
     // 3) Run the ImportRecentListings job inline (no queue, no Livewire)
     $job = new ImportRecentListings(pageSize: 100, maxPages: 1000, windowStartIso: $windowIso);
-    $job->handle($client);
+    $job->handle(app(ListingUpserter::class));
 
     // 4) Count imported IDX listings matching the same 30 day window
     $idxSourceId = Source::query()->where('slug', 'idx')->value('id');

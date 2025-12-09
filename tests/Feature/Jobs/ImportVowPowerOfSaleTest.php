@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\ImportVowPowerOfSale;
 use App\Models\Listing;
-use App\Services\Idx\IdxClient;
+use App\Services\Idx\ListingUpserter;
 use Illuminate\Support\Facades\Http;
 
 it('normalizes long board names to short codes in VOW import', function (): void {
@@ -41,7 +41,7 @@ it('normalizes long board names to short codes in VOW import', function (): void
 
     expect(Listing::query()->count())->toBe(0);
 
-    (new ImportVowPowerOfSale(pageSize: 10, maxPages: 1))->handle(app(IdxClient::class));
+    (new ImportVowPowerOfSale(pageSize: 10, maxPages: 1))->handle(app(ListingUpserter::class));
 
     $listing = Listing::query()->where('external_id', 'X7289548')->first();
     expect($listing)->not->toBeNull();

@@ -43,12 +43,12 @@ test('admins can view the dashboard', function (): void {
     $this->actingAs($admin)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Total listings')
-        ->assertSee('Open listings workspace')
-        ->assertSee('Available inventory')
-        ->assertSee('Team members')
-        ->assertSee('Manage users')
-        ->assertSee('Analytics data unavailable')
+        ->assertSee('Total Listings')
+        ->assertSee('View listings')
+        ->assertSee('Available')
+        ->assertSee('Team Members')
+        ->assertSee('Manage team')
+        ->assertSee('Analytics not configured')
         ->assertSee($availableListing->street_address)
         ->assertSee(route('admin.listings.index'), false);
 });
@@ -130,7 +130,7 @@ test('dashboard surfaces a helpful message when analytics data is unavailable', 
     $this->actingAs($admin)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Analytics data unavailable')
+        ->assertSee('Analytics not configured')
         ->assertSee('Analytics data is temporarily unavailable.');
 });
 

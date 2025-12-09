@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Jobs\ImportMlsListings;
 use App\Models\Listing;
 use App\Models\User;
+use App\Services\Idx\ListingUpserter;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
@@ -230,7 +231,7 @@ test('import mls listings job creates listings in database', function (): void {
     ]);
 
     $job = new ImportMlsListings(['X1234567', 'W5678901', 'C9012345']);
-    $job->handle();
+    $job->handle(app(ListingUpserter::class));
 
     // Verify listings were created
     expect(Listing::where('listing_key', 'X1234567')->exists())->toBeTrue();
@@ -261,7 +262,7 @@ test('import mls listings job uses ListingKey for API filter', function (): void
     ]);
 
     $job = new ImportMlsListings(['X1234567', 'W5678901']);
-    $job->handle();
+    $job->handle(app(ListingUpserter::class));
 
     // Verify the correct filter was used (ListingKey, not ListingId)
     Http::assertSent(function ($request) {

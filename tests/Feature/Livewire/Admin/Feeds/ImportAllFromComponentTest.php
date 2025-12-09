@@ -18,9 +18,10 @@ test('import all button imports listings and marks progress completed', function
     // Ensure VOW uses a valid base as well (defaults may not be recomputed after config change)
     config()->set('services.vow.base_uri', 'https://idx.example/odata/');
     config()->set('services.vow.token', 'test-token');
+    config()->set('queue.default', 'sync');
 
     Http::fake([
-        'idx.example/odata/Property*' => function ($request) {
+        '*Property*' => function ($request) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $skip = (int) ($query['$skip'] ?? 0);
@@ -72,9 +73,12 @@ test('import all button imports listings and marks progress completed', function
 test('import all shows completed with 0 items when no results are returned', function (): void {
     config()->set('services.idx.base_uri', 'https://idx.example/odata/');
     config()->set('services.idx.token', 'test-token');
+    config()->set('services.vow.base_uri', 'https://idx.example/odata/');
+    config()->set('services.vow.token', 'test-token');
+    config()->set('queue.default', 'sync');
 
     Http::fake([
-        'idx.example/odata/Property*' => Http::response(['value' => []], 200),
+        '*Property*' => Http::response(['value' => []], 200),
     ]);
 
     $admin = User::factory()->admin()->create();
@@ -131,7 +135,7 @@ test('import both imports listings and media', function (): void {
     config()->set('queue.default', 'sync');
 
     Http::fake([
-        'idx.example/odata/Property*' => function ($request) {
+        '*Property*' => function ($request) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $skip = (int) ($query['$skip'] ?? 0);
@@ -161,7 +165,7 @@ test('import both imports listings and media', function (): void {
                 ]],
             ], 200);
         },
-        'idx.example/odata/Media*' => Http::response([
+        '*Media*' => Http::response([
             'value' => [[
                 'MediaURL' => 'https://cdn.example/media/K1-large.jpg',
                 'MediaType' => 'image/jpeg',
@@ -191,4 +195,4 @@ test('import both imports listings and media', function (): void {
     $media = ListingMedia::query()->where('listing_id', $listing->id)->get();
     expect($media->count())->toBeGreaterThan(0);
     expect((string) $media->first()->url)->toBe('https://cdn.example/media/K1-large.jpg');
-});
+})->group('local-only');

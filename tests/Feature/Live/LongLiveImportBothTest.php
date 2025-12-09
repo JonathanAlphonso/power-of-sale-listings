@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+uses()->group('local-only');
+
 use App\Models\Listing;
 use App\Services\Idx\IdxClient;
 use Illuminate\Support\Facades\Cache;

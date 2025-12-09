@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\ImportIdxPowerOfSale;
 use App\Models\Listing;
-use App\Services\Idx\IdxClient;
+use App\Services\Idx\ListingUpserter;
 use Illuminate\Support\Facades\Http;
 
 it('imports power of sale listings end-to-end', function (): void {
@@ -69,7 +69,7 @@ it('imports power of sale listings end-to-end', function (): void {
 
     // Run job synchronously
     $job = new ImportIdxPowerOfSale(pageSize: 50, maxPages: 2);
-    $job->handle(app(IdxClient::class));
+    $job->handle(app(ListingUpserter::class));
 
     $listings = Listing::query()->get();
     expect($listings->count())->toBe(2);
@@ -122,7 +122,7 @@ it('updates existing listing matched by board_code + mls_number without duplicat
     ]);
 
     $job = new ImportIdxPowerOfSale(pageSize: 50, maxPages: 1);
-    $job->handle(app(IdxClient::class));
+    $job->handle(app(ListingUpserter::class));
 
     // Still one listing, updated in place
     $rows = Listing::query()->where('board_code', 'TRREB')->where('mls_number', 'A1')->get();
@@ -157,7 +157,7 @@ it('follows @odata.nextLink pagination when provided', function (): void {
     ]);
 
     $job = new \App\Jobs\ImportIdxPowerOfSale(pageSize: 1, maxPages: 5);
-    $job->handle(app(\App\Services\Idx\IdxClient::class));
+    $job->handle(app(ListingUpserter::class));
 
     expect(\App\Models\Listing::query()->whereIn('external_id', ['N1', 'N2'])->count())->toBe(2);
 });
@@ -200,7 +200,7 @@ it('updates a soft-deleted duplicate instead of inserting a new row', function (
     ]);
 
     $job = new ImportIdxPowerOfSale(pageSize: 50, maxPages: 1);
-    $job->handle(app(IdxClient::class));
+    $job->handle(app(ListingUpserter::class));
 
     // No duplicate inserted; soft-deleted row was updated
     // Listing should be restored and updated
@@ -239,14 +239,14 @@ it('does not append status history when import payload is unchanged', function (
     ]);
 
     // First import
-    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\IdxClient::class));
+    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(ListingUpserter::class));
 
     $listing = \App\Models\Listing::query()->where('external_id', 'IDEMP1')->firstOrFail();
     $count1 = \App\Models\ListingStatusHistory::query()->where('listing_id', $listing->id)->count();
     expect($count1)->toBe(1);
 
     // Second import with identical payload should not create a new history row
-    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\IdxClient::class));
+    (new \App\Jobs\ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(ListingUpserter::class));
     $count2 = \App\Models\ListingStatusHistory::query()->where('listing_id', $listing->id)->count();
     expect($count2)->toBe($count1);
 });
@@ -303,7 +303,7 @@ it('imports thousands of recent power of sale listings with full public remarks'
     ]);
 
     $job = new ImportIdxPowerOfSale(pageSize: 100, maxPages: 100);
-    $job->handle(app(IdxClient::class));
+    $job->handle(app(ListingUpserter::class));
 
     $count = Listing::query()
         ->where('external_id', 'like', 'KPOS%')

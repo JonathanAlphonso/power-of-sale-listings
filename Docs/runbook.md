@@ -185,4 +185,204 @@ Use your platform’s process manager to keep workers alive across deploys:
   - Or queue a fake job and look for it to clear from the `jobs` table.
 - Review logs for recent activity: `tail -n 200 storage/logs/laravel.log` and `storage/logs/queue-worker.log` (if using `nohup`/Supervisor).
 
-If you see “Import queued” on `/admin/feeds` but nothing happens, a worker is not running.
+If you see "Import queued" on `/admin/feeds` but nothing happens, a worker is not running.
+
+## Listing Media Operations
+
+Listing photos and media can optionally be downloaded and stored locally (on disk) instead of being served directly from the IDX API. This reduces external API load, improves page load times, and ensures media availability even if the source API is temporarily unavailable.
+
+### Storage Setup
+
+1. **Create the storage symlink** (required once per environment):
+   ```bash
+   php artisan storage:link
+   ```
+   This creates `public/storage` → `storage/app/public`. Verify with `ls -la public/storage`.
+
+2. **Set directory permissions** (production):
+   ```bash
+   chmod -R 775 storage/app/public
+   chown -R www-data:www-data storage/app/public
+   ```
+
+### Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MEDIA_DISK` | `public` | Laravel filesystem disk for storing downloaded media. |
+| `MEDIA_PATH_PREFIX` | `listings` | Directory prefix within the disk (e.g., `storage/app/public/listings/`). |
+| `MEDIA_AUTO_DOWNLOAD` | `false` | When `true`, media is automatically queued for download during listing sync. |
+| `MEDIA_RATE_LIMIT_API` | `120` | Max IDX API requests per minute for media sync jobs. |
+| `MEDIA_RATE_LIMIT_DOWNLOAD` | `60` | Max image download requests per minute. |
+
+Example `.env` configuration:
+```
+MEDIA_DISK=public
+MEDIA_PATH_PREFIX=listings
+MEDIA_AUTO_DOWNLOAD=true
+MEDIA_RATE_LIMIT_API=120
+MEDIA_RATE_LIMIT_DOWNLOAD=60
+```
+
+### Rate Limiting
+
+Media jobs are rate-limited to avoid overwhelming the IDX API (which allows 60,000 requests/minute) and to be a good API citizen. Two separate limiters are configured:
+
+- **`media-api`**: Limits `SyncIdxMediaForListing` jobs (IDX API calls) to 120/minute by default
+- **`media-download`**: Limits `DownloadListingMedia` jobs (image downloads) to 60/minute by default
+
+When rate limited, jobs are automatically released back to the queue and retried later. Jobs have:
+- 5 retry attempts
+- 2-hour retry window
+- Max 3 exceptions before failure
+
+To increase throughput during backfill operations, temporarily raise limits in `.env`:
+
+```bash
+# High-throughput backfill (be mindful of API limits)
+MEDIA_RATE_LIMIT_API=500
+MEDIA_RATE_LIMIT_DOWNLOAD=200
+```
+
+### Media Queue Worker
+
+Media download jobs use the `media` queue. Run a dedicated worker or include `media` in your worker's queue list:
+
+```bash
+# Dedicated media worker
+php artisan queue:work --queue=media --sleep=3 --tries=3 --timeout=120
+
+# Combined worker processing both default and media queues
+php artisan queue:work --queue=default,media --sleep=3 --tries=3 --timeout=1800
+```
+
+For production, configure Supervisor or Forge Daemon with separate workers for high-volume media processing.
+
+### Backfill Command
+
+To queue media downloads for listings that are missing local copies:
+
+```bash
+# Backfill listings with no downloaded media (default)
+php artisan listing-media:backfill
+
+# Backfill all listings (re-download even if already stored)
+php artisan listing-media:backfill --all
+
+# Limit to 500 listings
+php artisan listing-media:backfill --limit=500
+
+# Use a specific queue
+php artisan listing-media:backfill --queue=media-backfill
+```
+
+### Prune Command
+
+Remove orphaned media files that no longer have corresponding database records:
+
+```bash
+# Dry-run: show what would be deleted
+php artisan listing-media:prune
+
+# Actually delete orphan files
+php artisan listing-media:prune --force
+
+# Prune from a specific disk
+php artisan listing-media:prune --disk=public --force
+```
+
+**Caution:** Never use `--include-stored=true` unless you intend to delete all media files including those still referenced in the database.
+
+### Monitoring Media Jobs
+
+Media job metrics are cached and can be inspected via Tinker:
+
+```php
+// View download success/failure counts
+Cache::get('media.download.success_count');
+Cache::get('media.download.failure_count');
+
+// View sync success/failure counts
+Cache::get('media.sync.success_count');
+Cache::get('media.sync.failure_count');
+```
+
+### Storage Structure
+
+Downloaded media follows this path structure:
+```
+storage/app/public/listings/{listing_id}/{media_id}.{ext}
+```
+
+Example: `storage/app/public/listings/42/103.jpg`
+
+### Retention Policy for Soft-Deleted Listings
+
+When listings are soft-deleted, their media records and files remain on disk. Use the cleanup command to enforce retention:
+
+```bash
+# Dry-run: see what would be deleted (default: 30 days retention)
+php artisan listings:cleanup-deleted
+
+# Customize retention period
+php artisan listings:cleanup-deleted --days=60
+
+# Actually delete media files and records
+php artisan listings:cleanup-deleted --force
+
+# Also hard-delete the listing records (permanent removal)
+php artisan listings:cleanup-deleted --hard-delete --force
+```
+
+This command is scheduled to run nightly (see Scheduler section). Manual runs should use dry-run first to preview actions.
+
+### Troubleshooting
+
+| Symptom | Likely Cause | Resolution |
+| --- | --- | --- |
+| Images show broken links | Storage symlink missing | Run `php artisan storage:link` |
+| Images fallback to remote URLs | Download job failed or not queued | Check `MEDIA_AUTO_DOWNLOAD=true` and worker is running |
+| `listing-media:backfill` runs but nothing downloads | No media worker running | Start worker with `--queue=media` |
+| Disk full warnings | Orphaned files accumulating | Run `php artisan listing-media:prune --force` |
+| Permission denied writing files | Wrong disk permissions | Fix ownership: `chown -R www-data:www-data storage/app/public` |
+
+## Scheduler Configuration
+
+The application uses Laravel's task scheduler for automated maintenance. The following tasks are configured:
+
+| Schedule | Command | Description |
+| --- | --- | --- |
+| Daily 2:00 AM | `listing-media:prune --force` | Remove orphaned media files from storage |
+| Daily 2:15 AM | `listings:cleanup-deleted --force` | Clean up media for listings soft-deleted > 30 days |
+| Weekly Sunday 3:00 AM | `listings:cleanup-deleted --days=90 --hard-delete --force` | Hard-delete listings soft-deleted > 90 days |
+
+### Setup
+
+Add the scheduler to your system crontab (production):
+
+```bash
+* * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
+```
+
+For Forge, enable the scheduler in the site's "Scheduler" tab.
+
+### Viewing Scheduled Tasks
+
+```bash
+# List all scheduled tasks and next run times
+php artisan schedule:list
+
+# Run the scheduler manually (executes due tasks)
+php artisan schedule:run
+
+# Test a specific command without waiting for schedule
+php artisan schedule:test
+```
+
+### Scheduler Logs
+
+Scheduled task output is logged to `storage/logs/scheduled-tasks.log`. Monitor for errors:
+
+```bash
+tail -f storage/logs/scheduled-tasks.log
+```

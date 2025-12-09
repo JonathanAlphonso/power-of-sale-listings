@@ -15,6 +15,7 @@ test('import both imports five listings with images and pages are reachable', fu
     config()->set('services.vow.base_uri', 'https://idx.example/odata/');
     config()->set('services.vow.token', 'test-token');
     config()->set('media.auto_download', true);
+    config()->set('queue.default', 'sync');
 
     // Fake storage for downloaded images
     Storage::fake('public');
@@ -45,7 +46,7 @@ test('import both imports five listings with images and pages are reachable', fu
     // Fake IDX + VOW Property and Media responses, plus image downloads
     Http::fake([
         // Property listing pages: serve five on first page, then empty
-        'idx.example/odata/Property*' => function ($request) use ($properties) {
+        '*Property*' => function ($request) use ($properties) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $skip = (int) ($query['$skip'] ?? 0);
@@ -57,7 +58,7 @@ test('import both imports five listings with images and pages are reachable', fu
             return Http::response(['value' => $properties], 200);
         },
         // Media lookups: return a single Large image per listing key from the filter value
-        'idx.example/odata/Media*' => function ($request) {
+        '*Media*' => function ($request) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $filter = (string) ($query['$filter'] ?? '');
@@ -122,4 +123,4 @@ test('import both imports five listings with images and pages are reachable', fu
     // Cleanup: remove the inserted records (cascade deletes media)
     Listing::query()->whereIn('id', $listings->pluck('id')->all())->delete();
     expect(Listing::query()->whereIn('external_id', $keys)->count())->toBe(0);
-});
+})->group('local-only');

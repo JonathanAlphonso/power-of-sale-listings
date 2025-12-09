@@ -577,7 +577,174 @@ class IdxClient
         }
     }
 
-    // Address building is handled by the ListingTransformer
+// Address building is handled by the ListingTransformer
+
+    /**
+     * Fetch a page of media records using cursor-based pagination.
+     *
+     * This method is designed for replication/backfill scenarios where we need to
+     * page through all media records efficiently. Uses ModificationTimestamp,MediaKey
+     * for deterministic ordering and cursor-based pagination as per API best practices.
+     *
+     * @param  string|null  $cursorTimestamp  ISO 8601 timestamp to resume from (null for start)
+     * @param  string|null  $cursorMediaKey  MediaKey to resume from within same timestamp
+     * @param  int  $limit  Number of records per page (default 100, max 1000)
+     * @return array{items: array<int, array{media_key:string,resource_key:string,url:string,type:?string,size:?string,modified_at:string}>, cursor: array{timestamp:?string,media_key:?string}, has_more: bool}
+     */
+    public function fetchMediaPage(
+        ?string $cursorTimestamp = null,
+        ?string $cursorMediaKey = null,
+        int $limit = 100,
+    ): array {
+        $emptyResult = ['items' => [], 'cursor' => ['timestamp' => null, 'media_key' => null], 'has_more' => false];
+
+        if (! $this->isEnabled()) {
+            return $emptyResult;
+        }
+
+        $limit = max(1, min($limit, 1000));
+
+        try {
+            $select = implode(',', [
+                'MediaKey',
+                'MediaURL',
+                'MediaType',
+                'ResourceName',
+                'ResourceRecordKey',
+                'MediaModificationTimestamp',
+                'ImageSizeDescription',
+                'LongDescription',
+                'ShortDescription',
+                'MediaCategory',
+                'MediaStatus',
+            ]);
+
+            // Build cursor filter for proper pagination (timestamp + key based)
+            $cursorTs = $cursorTimestamp ?? '1970-01-01T00:00:00Z';
+            $cursorKey = str_replace("'", "''", $cursorMediaKey ?? '');
+
+            // Filter: Only Property photos that are active
+            // Cursor: (ModificationTimestamp > cursor) OR (ModificationTimestamp = cursor AND MediaKey > cursorKey)
+            $filter = "ResourceName eq 'Property' and MediaCategory eq 'Photo' and MediaStatus eq 'Active' and ImageSizeDescription eq 'Large'";
+            $filter .= " and (MediaModificationTimestamp gt {$cursorTs}";
+            $filter .= " or (MediaModificationTimestamp eq {$cursorTs} and MediaKey gt '{$cursorKey}'))";
+
+            $response = $this->connection()->retry(1, 200)->timeout(15)->get('Media', [
+                '$filter' => $filter,
+                '$select' => $select,
+                '$orderby' => 'MediaModificationTimestamp,MediaKey',
+                '$top' => $limit,
+            ]);
+
+            try {
+                $this->recordHttpMetrics('media', $response->status());
+            } catch (\Throwable) {
+                // ignore
+            }
+
+            if ($response->failed()) {
+                return $emptyResult;
+            }
+
+            $payload = $response->json('value');
+            if (! is_array($payload)) {
+                return $emptyResult;
+            }
+
+            $items = [];
+            $lastTimestamp = null;
+            $lastMediaKey = null;
+
+            foreach ($payload as $record) {
+                if (! is_array($record)) {
+                    continue;
+                }
+
+                $mediaKey = $record['MediaKey'] ?? null;
+                $resourceKey = $record['ResourceRecordKey'] ?? null;
+                $url = $record['MediaURL'] ?? null;
+                $modifiedAt = $record['MediaModificationTimestamp'] ?? null;
+
+                if (! is_string($mediaKey) || ! is_string($resourceKey) || ! is_string($url) || ! is_string($modifiedAt)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'media_key' => $mediaKey,
+                    'resource_key' => $resourceKey, // This is the ListingKey
+                    'url' => $url,
+                    'label' => is_string($record['LongDescription'] ?? null) ? $record['LongDescription'] : (is_string($record['ShortDescription'] ?? null) ? $record['ShortDescription'] : null),
+                    'type' => is_string($record['MediaType'] ?? null) ? $record['MediaType'] : null,
+                    'size' => is_string($record['ImageSizeDescription'] ?? null) ? $record['ImageSizeDescription'] : null,
+                    'modified_at' => $modifiedAt,
+                ];
+
+                $lastTimestamp = $modifiedAt;
+                $lastMediaKey = $mediaKey;
+            }
+
+            return [
+                'items' => $items,
+                'cursor' => [
+                    'timestamp' => $lastTimestamp,
+                    'media_key' => $lastMediaKey,
+                ],
+                'has_more' => count($items) >= $limit,
+            ];
+        } catch (Throwable) {
+            return $emptyResult;
+        }
+    }
+
+    /**
+     * Get listing keys that have media changes since a given timestamp.
+     *
+     * This is useful for identifying which listings need media sync updates
+     * without downloading all media records.
+     *
+     * @param  string|null  $since  ISO 8601 timestamp (null for all)
+     * @param  int  $limit  Max number of unique listing keys to return
+     * @return array<int, string> Array of unique ListingKey values
+     */
+    public function getListingKeysWithMediaChanges(?string $since = null, int $limit = 500): array
+    {
+        if (! $this->isEnabled()) {
+            return [];
+        }
+
+        $allKeys = [];
+        $cursorTimestamp = $since ?? '1970-01-01T00:00:00Z';
+        $cursorMediaKey = null;
+        $pageSize = min($limit * 2, 500); // Fetch more to account for duplicates
+
+        // Page through media until we have enough unique listing keys
+        while (count($allKeys) < $limit) {
+            $page = $this->fetchMediaPage($cursorTimestamp, $cursorMediaKey, $pageSize);
+
+            if (empty($page['items'])) {
+                break;
+            }
+
+            foreach ($page['items'] as $item) {
+                $key = $item['resource_key'];
+                if (! in_array($key, $allKeys, true)) {
+                    $allKeys[] = $key;
+                    if (count($allKeys) >= $limit) {
+                        break 2;
+                    }
+                }
+            }
+
+            if (! $page['has_more']) {
+                break;
+            }
+
+            $cursorTimestamp = $page['cursor']['timestamp'];
+            $cursorMediaKey = $page['cursor']['media_key'];
+        }
+
+        return $allKeys;
+    }
 
     private function recordHttpMetrics(string $scope, ?int $status, ?string $error = null): void
     {

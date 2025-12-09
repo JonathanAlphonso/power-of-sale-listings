@@ -11,9 +11,11 @@
 |
 */
 
-// Live tests use DatabaseTransactions to preserve existing data
+// Live tests use RefreshDatabase for proper schema setup in SQLite in-memory
+// Note: Originally used DatabaseTransactions to preserve existing data,
+// but this doesn't work with SQLite in-memory since no schema exists
 pest()->extend(Tests\TestCase::class)
-    ->use(Illuminate\Foundation\Testing\DatabaseTransactions::class)
+    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
     ->in('Feature/Live');
 
 // Feature subdirectory tests use RefreshDatabase

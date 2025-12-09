@@ -262,7 +262,7 @@ test('import recent listings uses timestamp and key cursor replication without r
     ]);
 
     $job = new ImportRecentListings(pageSize: 2, maxPages: 10);
-    $job->handle(app(\App\Services\Idx\IdxClient::class));
+    $job->handle(app(\App\Services\Idx\ListingUpserter::class));
 
     expect(Listing::query()->whereIn('external_id', ['IDX1', 'IDX2', 'IDX3', 'VOW1'])->count())->toBe(4);
 

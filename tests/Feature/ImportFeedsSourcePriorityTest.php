@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Jobs\ImportIdxPowerOfSale;
 use App\Jobs\ImportVowPowerOfSale;
 use App\Models\Listing;
-use App\Services\Idx\IdxClient;
+use App\Services\Idx\ListingUpserter;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -55,10 +55,10 @@ beforeEach(function (): void {
 });
 
 it('upgrades VOW to IDX when both present', function (): void {
-    $idx = app(IdxClient::class);
+    $upserter = app(ListingUpserter::class);
 
     // Import VOW first
-    (new ImportVowPowerOfSale(pageSize: 1, maxPages: 1))->handle($idx);
+    (new ImportVowPowerOfSale(pageSize: 1, maxPages: 1))->handle($upserter);
 
     $listing = Listing::first();
     expect($listing)->not->toBeNull();
@@ -66,7 +66,7 @@ it('upgrades VOW to IDX when both present', function (): void {
     expect($listing->source->slug)->toBe('vow');
 
     // Then import IDX
-    (new ImportIdxPowerOfSale(pageSize: 1, maxPages: 1))->handle($idx);
+    (new ImportIdxPowerOfSale(pageSize: 1, maxPages: 1))->handle($upserter);
 
     $listing->refresh();
     expect($listing->source->slug)->toBe('idx');
@@ -74,10 +74,10 @@ it('upgrades VOW to IDX when both present', function (): void {
 });
 
 it('keeps IDX when VOW ingests after', function (): void {
-    $idx = app(IdxClient::class);
+    $upserter = app(ListingUpserter::class);
 
     // Import IDX first
-    (new ImportIdxPowerOfSale(pageSize: 1, maxPages: 1))->handle($idx);
+    (new ImportIdxPowerOfSale(pageSize: 1, maxPages: 1))->handle($upserter);
 
     $listing = Listing::first();
     expect($listing)->not->toBeNull();
@@ -85,7 +85,7 @@ it('keeps IDX when VOW ingests after', function (): void {
     expect($listing->source->slug)->toBe('idx');
 
     // Then import VOW
-    (new ImportVowPowerOfSale(pageSize: 1, maxPages: 1))->handle($idx);
+    (new ImportVowPowerOfSale(pageSize: 1, maxPages: 1))->handle($upserter);
 
     $listing->refresh();
     expect($listing->source->slug)->toBe('idx');

@@ -46,17 +46,16 @@
 -   [x] Migration: add storage columns to listing_media
 -   [x] Config: media env vars + config/media.php
 -   [x] Job: DownloadListingMedia to fetch/store images
--   [~] Throttle: media queue in place (rate-limit pending)
+-   [x] Throttle: media queue rate-limiting via RateLimited middleware
 -   [x] Dispatch: queue downloads from syncMedia (behind MEDIA_AUTO_DOWNLOAD flag)
 -   [x] UI: prefer Storage URL, fallback remote (model accessor + views)
 -   [x] Tests: job + URL accessor
 -   [x] Command: listing-media:backfill (missing downloads)
 -   [x] Command: listing-media:prune (dry-run, schedule)
--   [ ] Runbook: storage:link, env, worker notes
+-   [x] Runbook: storage:link, env, worker notes
 -   [x] Metrics: job success/failure counters
--   [ ] Retention: policy for soft-deleted listings
--   [ ] Optional: thumbnails/variants (pending)
--   [ ] Schedule: nightly duplicate/stale checks
+-   [x] Retention: policy for soft-deleted listings
+-   [x] Schedule: nightly duplicate/stale checks
 
 Media Resource Requirements (from API Docs)
 
@@ -64,7 +63,7 @@ Media Resource Requirements (from API Docs)
 -   [x] Filter for listing photos by `ResourceName eq 'Property'`, `ResourceRecordKey eq <ListingKey>`, and active photos only (e.g., `MediaCategory eq 'Photo'`, `MediaStatus eq 'Active'`). Order deterministically with `$orderby=MediaModificationTimestamp,MediaKey` and use `$top=1` to pick a primary image when needed.
 -   [x] Select only the needed fields for performance (e.g., `$select=MediaURL,MediaType,ResourceName,ResourceRecordKey,MediaModificationTimestamp`).
 -   [x] Be aware: `Media.ModificationTimestamp` can change without changing the listing's `ModificationTimestamp`. Track `PhotosChangeTimestamp`/`DocumentsChangeTimestamp` on Property to detect media changes.
--   [ ] For replication/backfill, page Media by `ModificationTimestamp,MediaKey` and dedupe by `ResourceRecordKey`.
+-   [x] For replication/backfill, page Media by `ModificationTimestamp,MediaKey` and dedupe by `ResourceRecordKey`.
 
 ## M3 – Public Portal & Notifications
 

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+uses()->group('local-only');
+
 use App\Enums\UserRole;
 use App\Jobs\ImportAllPowerOfSaleFeeds;
 use App\Jobs\ImportPosLast30Days;

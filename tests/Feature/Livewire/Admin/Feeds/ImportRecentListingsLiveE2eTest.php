@@ -107,4 +107,4 @@ test('live 24h import button matches IDX API count', function (): void {
     // created or modified between the enumeration and the job run.
     expect($importedCount)->toBeGreaterThanOrEqual($expectedCount - 1);
     expect($importedCount)->toBeLessThanOrEqual($expectedCount + 1);
-});
+})->group('local-only');

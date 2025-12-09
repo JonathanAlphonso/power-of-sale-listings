@@ -45,7 +45,7 @@ test('replication cursor never advances into the future', function (): void {
         'idx.example/odata/Media*' => Http::response(['value' => []], 200),
     ]);
 
-    (new ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\IdxClient::class));
+    (new ImportIdxPowerOfSale(pageSize: 50, maxPages: 1))->handle(app(\App\Services\Idx\ListingUpserter::class));
 
     $cursor->refresh();
 

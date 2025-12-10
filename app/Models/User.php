@@ -108,6 +108,52 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(ListingSuppression::class);
     }
 
+    /**
+     * @return HasMany<UserFavorite>
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(UserFavorite::class);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Listing>
+     */
+    public function favoriteListings(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Listing::class, 'user_favorites')
+            ->withPivot('notes')
+            ->withTimestamps()
+            ->orderByPivot('created_at', 'desc');
+    }
+
+    public function hasFavorited(Listing|int $listing): bool
+    {
+        $listingId = $listing instanceof Listing ? $listing->id : $listing;
+
+        return $this->favorites()->where('listing_id', $listingId)->exists();
+    }
+
+    /**
+     * @return HasMany<ListingView>
+     */
+    public function listingViews(): HasMany
+    {
+        return $this->hasMany(ListingView::class);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Listing>
+     */
+    public function recentlyViewedListings(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Listing::class, 'listing_views')
+            ->withPivot('viewed_at')
+            ->withTimestamps()
+            ->orderByPivot('viewed_at', 'desc')
+            ->using(ListingViewPivot::class);
+    }
+
     public function scopeActive(Builder $builder): Builder
     {
         return $builder->whereNull('suspended_at');

@@ -715,19 +715,26 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
                     @endif
                 </a>
 
-                <!-- Compare checkbox -->
-                <button
-                    wire:click="toggleCompare({{ $listing->id }})"
-                    class="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full {{ $isInCompare ? 'bg-emerald-500 text-white' : 'bg-white/90 text-slate-600 hover:bg-emerald-500 hover:text-white' }} shadow-lg transition dark:bg-zinc-800/90 dark:text-zinc-300 {{ $isInCompare ? '' : 'dark:hover:bg-emerald-500 dark:hover:text-white' }}"
-                    title="{{ $isInCompare ? __('Remove from comparison') : __('Add to comparison') }}"
-                    @if (!$this->canAddToCompare && !$isInCompare) disabled @endif
-                >
-                    @if ($isInCompare)
-                        <flux:icon name="check" class="h-5 w-5" />
-                    @else
-                        <flux:icon name="scale" class="h-4 w-4" />
-                    @endif
-                </button>
+                <!-- Action buttons -->
+                <div class="absolute top-3 right-3 flex items-center gap-2">
+                    @auth
+                        <livewire:favorites.toggle-button :listing-id="$listing->id" :key="'fav-'.$listing->id" />
+                    @endauth
+
+                    <!-- Compare checkbox -->
+                    <button
+                        wire:click="toggleCompare({{ $listing->id }})"
+                        class="flex h-8 w-8 items-center justify-center rounded-full {{ $isInCompare ? 'bg-emerald-500 text-white' : 'bg-white/90 text-slate-600 hover:bg-emerald-500 hover:text-white' }} shadow-lg transition dark:bg-zinc-800/90 dark:text-zinc-300 {{ $isInCompare ? '' : 'dark:hover:bg-emerald-500 dark:hover:text-white' }}"
+                        title="{{ $isInCompare ? __('Remove from comparison') : __('Add to comparison') }}"
+                        @if (!$this->canAddToCompare && !$isInCompare) disabled @endif
+                    >
+                        @if ($isInCompare)
+                            <flux:icon name="check" class="h-5 w-5" />
+                        @else
+                            <flux:icon name="scale" class="h-4 w-4" />
+                        @endif
+                    </button>
+                </div>
 
                 <div class="flex flex-1 flex-col gap-4 p-6">
                     <div class="flex items-start justify-between gap-3">

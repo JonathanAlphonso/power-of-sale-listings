@@ -33,9 +33,74 @@
                 {{ __('Back to listings') }}
             </flux:button>
 
-            <flux:badge color="{{ \App\Support\ListingPresentation::statusBadge($listing->display_status) }}" size="md">
-                {{ $listing->display_status ?? __('Unknown status') }}
-            </flux:badge>
+            <div class="flex items-center gap-3">
+                @auth
+                    <livewire:favorites.toggle-button :listing-id="$listing->id" />
+                @endauth
+
+                <!-- Share dropdown -->
+                <flux:dropdown>
+                    <flux:button variant="ghost" icon="share" size="sm" />
+
+                    <flux:menu class="w-48">
+                        <flux:menu.heading>{{ __('Share listing') }}</flux:menu.heading>
+
+                        <flux:menu.item
+                            icon="link"
+                            x-data
+                            x-on:click.prevent="navigator.clipboard.writeText('{{ route('listings.show', $listing) }}').then(() => $flux.toast({ text: '{{ __('Link copied!') }}', variant: 'success' }))"
+                        >
+                            {{ __('Copy link') }}
+                        </flux:menu.item>
+
+                        <flux:menu.separator />
+
+                        @php
+                            $shareTitle = urlencode($listing->street_address . ' - ' . \App\Support\ListingPresentation::currency($listing->list_price));
+                            $shareUrl = urlencode(route('listings.show', $listing));
+                            $shareText = urlencode('Check out this power-of-sale listing: ' . $listing->street_address);
+                        @endphp
+
+                        <flux:menu.item
+                            as="a"
+                            href="https://www.facebook.com/sharer/sharer.php?u={{ $shareUrl }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {{ __('Share on Facebook') }}
+                        </flux:menu.item>
+
+                        <flux:menu.item
+                            as="a"
+                            href="https://twitter.com/intent/tweet?text={{ $shareText }}&url={{ $shareUrl }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {{ __('Share on X') }}
+                        </flux:menu.item>
+
+                        <flux:menu.item
+                            as="a"
+                            href="https://www.linkedin.com/sharing/share-offsite/?url={{ $shareUrl }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            {{ __('Share on LinkedIn') }}
+                        </flux:menu.item>
+
+                        <flux:menu.item
+                            as="a"
+                            href="mailto:?subject={{ $shareTitle }}&body={{ $shareText }}%0A%0A{{ $shareUrl }}"
+                        >
+                            {{ __('Share via email') }}
+                        </flux:menu.item>
+                    </flux:menu>
+                </flux:dropdown>
+
+                <flux:badge color="{{ \App\Support\ListingPresentation::statusBadge($listing->display_status) }}" size="md">
+                    {{ $listing->display_status ?? __('Unknown status') }}
+                </flux:badge>
+            </div>
         </div>
 
         <div class="mt-6 flex flex-col gap-4">

@@ -14,11 +14,14 @@ Volt::route('listings/compare', 'listings.compare')->name('listings.compare');
 
 Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
 
-// Saved searches (authenticated users only)
+// Saved searches, favorites, and recently viewed (authenticated users only)
 Route::middleware(['auth'])->group(function () {
     Volt::route('saved-searches', 'saved-searches.index')->name('saved-searches.index');
     Volt::route('saved-searches/create', 'saved-searches.create')->name('saved-searches.create');
     Volt::route('saved-searches/{savedSearch}/edit', 'saved-searches.edit')->name('saved-searches.edit');
+
+    Volt::route('favorites', 'favorites.index')->name('favorites.index');
+    Volt::route('recently-viewed', 'recently-viewed.index')->name('recently-viewed.index');
 });
 
 // Static pages

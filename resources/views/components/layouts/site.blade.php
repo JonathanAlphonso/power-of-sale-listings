@@ -61,6 +61,15 @@
 
                         <flux:menu.separator />
 
+                        <flux:menu.item :href="route('favorites.index')" icon="heart" wire:navigate>{{ __('My Favorites') }}
+                        </flux:menu.item>
+                        <flux:menu.item :href="route('recently-viewed.index')" icon="clock" wire:navigate>{{ __('Recently Viewed') }}
+                        </flux:menu.item>
+                        <flux:menu.item :href="route('saved-searches.index')" icon="bell" wire:navigate>{{ __('Saved Searches') }}
+                        </flux:menu.item>
+
+                        <flux:menu.separator />
+
                         <flux:menu.item :href="route('profile.edit')" icon="cog-6-tooth" wire:navigate>{{ __('Settings') }}
                         </flux:menu.item>
 
@@ -126,6 +135,9 @@
                             {{ __('Dashboard') }}
                         </flux:sidebar.item>
                     @endif
+                    <flux:sidebar.item :href="route('favorites.index')" :current="request()->routeIs('favorites.index')" wire:navigate>{{ __('My Favorites') }}</flux:sidebar.item>
+                    <flux:sidebar.item :href="route('recently-viewed.index')" :current="request()->routeIs('recently-viewed.index')" wire:navigate>{{ __('Recently Viewed') }}</flux:sidebar.item>
+                    <flux:sidebar.item :href="route('saved-searches.index')" :current="request()->routeIs('saved-searches.*')" wire:navigate>{{ __('Saved Searches') }}</flux:sidebar.item>
                     <flux:sidebar.item :href="route('profile.edit')" wire:navigate>{{ __('Settings') }}</flux:sidebar.item>
 
                     <form method="POST" action="{{ route('logout') }}">

@@ -28,6 +28,39 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         'days_on_market_desc' => 'Days on Market: High to Low',
     ];
 
+    private const QUICK_FILTERS = [
+        'new_this_week' => [
+            'label' => 'New This Week',
+            'icon' => 'sparkles',
+            'color' => 'emerald',
+        ],
+        'price_reduced' => [
+            'label' => 'Price Reduced',
+            'icon' => 'arrow-trending-down',
+            'color' => 'green',
+        ],
+        'under_300k' => [
+            'label' => 'Under $300K',
+            'icon' => 'currency-dollar',
+            'color' => 'blue',
+        ],
+        'under_500k' => [
+            'label' => 'Under $500K',
+            'icon' => 'currency-dollar',
+            'color' => 'violet',
+        ],
+        'houses_only' => [
+            'label' => 'Houses Only',
+            'icon' => 'home',
+            'color' => 'amber',
+        ],
+        'condos_only' => [
+            'label' => 'Condos Only',
+            'icon' => 'building-office',
+            'color' => 'sky',
+        ],
+    ];
+
     protected string $paginationTheme = 'tailwind';
 
     /** @var array<int> */
@@ -62,6 +95,9 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
 
     #[Url(as: 'per', except: '12')]
     public string $perPage = '12';
+
+    #[Url(as: 'quick', except: '')]
+    public string $quickFilter = '';
 
     public function updatedSearch(): void
     {
@@ -126,6 +162,43 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         $this->minBathrooms = '';
         $this->sortBy = 'modified_at_desc';
         $this->perPage = (string) self::PER_PAGE_OPTIONS[0];
+        $this->quickFilter = '';
+        $this->resetPage();
+    }
+
+    public function applyQuickFilter(string $filter): void
+    {
+        // Toggle off if same filter clicked
+        if ($this->quickFilter === $filter) {
+            $this->quickFilter = '';
+            $this->resetFilters();
+            return;
+        }
+
+        // Reset all filters first
+        $this->search = '';
+        $this->status = '';
+        $this->municipalityId = '';
+        $this->propertyType = '';
+        $this->minPrice = '';
+        $this->maxPrice = '';
+        $this->minBedrooms = '';
+        $this->minBathrooms = '';
+        $this->sortBy = 'modified_at_desc';
+
+        // Apply specific quick filter
+        $this->quickFilter = $filter;
+
+        match ($filter) {
+            'new_this_week' => $this->sortBy = 'listed_at_desc',
+            'price_reduced' => null, // Handled in query
+            'under_300k' => $this->maxPrice = '300000',
+            'under_500k' => $this->maxPrice = '500000',
+            'houses_only' => $this->propertyType = 'Detached',
+            'condos_only' => $this->propertyType = 'Condo Apt',
+            default => null,
+        };
+
         $this->resetPage();
     }
 
@@ -292,9 +365,26 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
             ->when($minBedrooms !== null, fn (Builder $builder): Builder => $builder->where('bedrooms', '>=', $minBedrooms))
             ->when($minBathrooms !== null, fn (Builder $builder): Builder => $builder->where('bathrooms', '>=', $minBathrooms));
 
+        // Apply special quick filter conditions
+        $this->applyQuickFilterConditions($query);
+
         $this->applySorting($query);
 
         return $query->paginate($perPage);
+    }
+
+    private function applyQuickFilterConditions(Builder $query): void
+    {
+        if ($this->quickFilter === '') {
+            return;
+        }
+
+        match ($this->quickFilter) {
+            'new_this_week' => $query->where('listed_at', '>=', now()->subWeek()),
+            'price_reduced' => $query->whereColumn('list_price', '<', 'original_list_price')
+                                     ->whereNotNull('original_list_price'),
+            default => null,
+        };
     }
 
     #[Computed]
@@ -343,6 +433,12 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
     }
 
     #[Computed]
+    public function quickFilterOptions(): array
+    {
+        return self::QUICK_FILTERS;
+    }
+
+    #[Computed]
     public function hasActiveFilters(): bool
     {
         return $this->search !== ''
@@ -352,7 +448,8 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
             || $this->minPrice !== ''
             || $this->maxPrice !== ''
             || $this->minBedrooms !== ''
-            || $this->minBathrooms !== '';
+            || $this->minBathrooms !== ''
+            || $this->quickFilter !== '';
     }
 
     #[Computed]
@@ -514,8 +611,37 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         </div>
     </div>
 
+    <!-- Quick Filters -->
+    <div class="mt-6 flex flex-wrap items-center gap-2">
+        <span class="text-sm font-medium text-slate-600 dark:text-zinc-400">{{ __('Quick filters:') }}</span>
+        @foreach ($this->quickFilterOptions as $key => $filter)
+            @php
+                $isActive = $this->quickFilter === $key;
+                $colors = [
+                    'emerald' => $isActive ? 'bg-emerald-500 text-white border-emerald-500' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30',
+                    'green' => $isActive ? 'bg-green-500 text-white border-green-500' : 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/30',
+                    'blue' => $isActive ? 'bg-blue-500 text-white border-blue-500' : 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30',
+                    'violet' => $isActive ? 'bg-violet-500 text-white border-violet-500' : 'border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-900/30',
+                    'amber' => $isActive ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/30',
+                    'sky' => $isActive ? 'bg-sky-500 text-white border-sky-500' : 'border-sky-200 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30',
+                ];
+                $colorClass = $colors[$filter['color']] ?? $colors['blue'];
+            @endphp
+            <button
+                wire:click="applyQuickFilter('{{ $key }}')"
+                class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition {{ $colorClass }}"
+            >
+                <flux:icon name="{{ $filter['icon'] }}" class="h-4 w-4" />
+                {{ __($filter['label']) }}
+                @if ($isActive)
+                    <flux:icon name="x-mark" class="h-3.5 w-3.5 ml-0.5" />
+                @endif
+            </button>
+        @endforeach
+    </div>
+
     <!-- Filters -->
-    <div class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70">
+    <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70">
         <div class="flex items-center justify-between mb-4">
             <flux:heading size="sm">{{ __('Filter listings') }}</flux:heading>
 
@@ -944,21 +1070,98 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
             </div>
         @empty
             <div class="sm:col-span-2 lg:col-span-3">
-                <flux:callout class="rounded-2xl">
-                    <flux:callout.heading>{{ __('No listings match your filters') }}</flux:callout.heading>
-                    <flux:callout.text>
+                <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                    <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800">
+                        <flux:icon name="magnifying-glass" class="h-8 w-8 text-slate-400 dark:text-zinc-500" />
+                    </div>
+
+                    <h3 class="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+                        {{ __('No listings match your filters') }}
+                    </h3>
+
+                    <p class="mt-2 text-sm text-slate-600 dark:text-zinc-400">
                         @if ($this->hasActiveFilters)
-                            {{ __('Try adjusting your search criteria or clearing the filters to see more results.') }}
+                            {{ __('Try adjusting your search criteria or explore one of these popular searches:') }}
                         @else
                             {{ __('Check back soon—new foreclosure opportunities will appear here as they are ingested from MLS feeds.') }}
                         @endif
-                    </flux:callout.text>
+                    </p>
+
                     @if ($this->hasActiveFilters)
-                        <flux:button variant="primary" wire:click="resetFilters" class="mt-4">
-                            {{ __('Clear all filters') }}
-                        </flux:button>
+                        <!-- Quick Filter Suggestions -->
+                        <div class="mt-6">
+                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                                {{ __('Try these searches') }}
+                            </p>
+                            <div class="flex flex-wrap justify-center gap-2">
+                                @foreach ($this->quickFilterOptions as $key => $filter)
+                                    @if ($this->quickFilter !== $key)
+                                        @php
+                                            $colors = [
+                                                'emerald' => 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30',
+                                                'green' => 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/30',
+                                                'blue' => 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30',
+                                                'violet' => 'border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-900/30',
+                                                'amber' => 'border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/30',
+                                                'sky' => 'border-sky-200 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30',
+                                            ];
+                                            $colorClass = $colors[$filter['color']] ?? $colors['blue'];
+                                        @endphp
+                                        <button
+                                            wire:click="applyQuickFilter('{{ $key }}')"
+                                            class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition {{ $colorClass }}"
+                                        >
+                                            <flux:icon name="{{ $filter['icon'] }}" class="h-4 w-4" />
+                                            {{ __($filter['label']) }}
+                                        </button>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                            <flux:button variant="primary" wire:click="resetFilters">
+                                <flux:icon name="x-mark" class="mr-1.5 h-4 w-4" />
+                                {{ __('Clear all filters') }}
+                            </flux:button>
+
+                            @auth
+                                <flux:button variant="ghost" :href="route('saved-searches.create', $this->currentFilters)" wire:navigate>
+                                    <flux:icon name="bell" class="mr-1.5 h-4 w-4" />
+                                    {{ __('Get notified when matching listings appear') }}
+                                </flux:button>
+                            @endauth
+                        </div>
+                    @else
+                        <div class="mt-6">
+                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                                {{ __('Browse by category') }}
+                            </p>
+                            <div class="flex flex-wrap justify-center gap-2">
+                                @foreach ($this->quickFilterOptions as $key => $filter)
+                                    @php
+                                        $colors = [
+                                            'emerald' => 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30',
+                                            'green' => 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/30',
+                                            'blue' => 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30',
+                                            'violet' => 'border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-900/30',
+                                            'amber' => 'border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/30',
+                                            'sky' => 'border-sky-200 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30',
+                                        ];
+                                        $colorClass = $colors[$filter['color']] ?? $colors['blue'];
+                                    @endphp
+                                    <button
+                                        wire:click="applyQuickFilter('{{ $key }}')"
+                                        class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition {{ $colorClass }}"
+                                    >
+                                        <flux:icon name="{{ $filter['icon'] }}" class="h-4 w-4" />
+                                        {{ __($filter['label']) }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
                     @endif
-                </flux:callout>
+                </div>
             </div>
         @endforelse
     </div>

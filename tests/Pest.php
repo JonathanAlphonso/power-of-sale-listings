@@ -32,6 +32,7 @@ pest()->extend(Tests\TestCase::class)
         'Feature/Settings',
         'Feature/Volt',
         // Root Feature tests - list each file pattern explicitly
+        'Feature/ContactFormTest.php',
         'Feature/DashboardTest.php',
         'Feature/DatabaseSeederTest.php',
         'Feature/ExampleTest.php',
@@ -45,8 +46,12 @@ pest()->extend(Tests\TestCase::class)
         'Feature/IdxClientRequestShapeTest.php',
         'Feature/ImportFeedsSourcePriorityTest.php',
         'Feature/ListingSchemaTest.php',
+        'Feature/NotificationSettingsTest.php',
         'Feature/ProcessListingPayloadTest.php',
         'Feature/PublicListingsTest.php',
+        'Feature/SavedSearchNotificationsTest.php',
+        'Feature/SavedSearchTest.php',
+        'Feature/StaticPagesTest.php',
         'Feature/WelcomePageProgressTest.php',
         'Feature/DebugDatabaseTest.php'
     );

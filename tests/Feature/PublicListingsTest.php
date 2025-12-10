@@ -27,16 +27,16 @@ test('guests can browse current listings', function (): void {
 });
 
 test('listings pagination links are rendered', function (): void {
-    Listing::factory()->count(15)->create([
+    // Create 25 listings to ensure pagination appears (default 12 per page)
+    Listing::factory()->count(25)->create([
         'display_status' => 'Available',
         'modified_at' => now(),
     ]);
 
-    $response = $this->get(route('listings.index'));
-
-    $response
-        ->assertOk()
-        ->assertSee('?page=2', false);
+    // Livewire 3 pagination uses gotoPage wire:click handlers
+    // Check that pagination navigation exists with "Next" link to page 2
+    Livewire\Volt\Volt::test('listings.index')
+        ->assertSeeHtml('gotoPage(2');
 });
 
 test('guests can view a listing detail page', function (): void {

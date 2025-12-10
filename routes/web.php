@@ -9,9 +9,22 @@ use Livewire\Volt\Volt;
 
 Route::get('/', HomeController::class)->name('home');
 
-Route::get('listings', [ListingsController::class, 'index'])->name('listings.index');
+Volt::route('listings', 'listings.index')->name('listings.index');
 
 Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
+
+// Saved searches (authenticated users only)
+Route::middleware(['auth'])->group(function () {
+    Volt::route('saved-searches', 'saved-searches.index')->name('saved-searches.index');
+    Volt::route('saved-searches/create', 'saved-searches.create')->name('saved-searches.create');
+    Volt::route('saved-searches/{savedSearch}/edit', 'saved-searches.edit')->name('saved-searches.edit');
+});
+
+// Static pages
+Volt::route('faq', 'pages.faq')->name('pages.faq');
+Volt::route('privacy', 'pages.privacy')->name('pages.privacy');
+Volt::route('terms', 'pages.terms')->name('pages.terms');
+Volt::route('contact', 'pages.contact')->name('pages.contact');
 
 Route::get('dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'admin'])
@@ -39,6 +52,7 @@ Route::middleware(['auth'])->group(function () {
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
     Volt::route('settings/password', 'settings.password')->name('password.edit');
+    Volt::route('settings/notifications', 'settings.notifications')->name('notifications.edit');
     Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
 
     Volt::route('settings/two-factor', 'settings.two-factor')

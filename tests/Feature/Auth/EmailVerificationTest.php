@@ -42,7 +42,7 @@ test('email can be verified with valid signature', function (): void {
 
     Event::assertDispatched(Verified::class);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
-    $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+    $response->assertRedirect(route('profile.edit', absolute: false).'?verified=1');
 });
 
 test('email is not verified with invalid hash', function (): void {
@@ -105,7 +105,7 @@ test('already verified user visiting verification link is redirected without fir
     );
 
     $this->actingAs($user)->get($verificationUrl)
-        ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+        ->assertRedirect(route('profile.edit', absolute: false).'?verified=1');
 
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     Event::assertNotDispatched(Verified::class);
@@ -186,4 +186,101 @@ test('verification URL uses correct route path', function (): void {
 
     // URL should use /email/verify/ path (matching the route)
     expect($verificationUrl)->toContain('/email/verify/');
+});
+
+test('email can be verified using actual notification URL end-to-end', function (): void {
+    $user = User::factory()->unverified()->create();
+    $capturedUrl = null;
+
+    // Capture the actual URL from the notification
+    Notification::fake();
+    $user->sendEmailVerificationNotification();
+
+    Notification::assertSentTo($user, VerifyEmail::class, function ($notification) use ($user, &$capturedUrl) {
+        $mailMessage = $notification->toMail($user);
+        $capturedUrl = $mailMessage->actionUrl;
+
+        return true;
+    });
+
+    // Stop faking to allow real request
+    Notification::swap(app('events'));
+
+    Event::fake();
+
+    // Use the actual URL from the notification
+    $response = $this->actingAs($user)->get($capturedUrl);
+
+    Event::assertDispatched(Verified::class);
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+    $response->assertRedirect(route('profile.edit', absolute: false).'?verified=1');
+});
+
+test('notification URL does not contain HTML entities', function (): void {
+    Notification::fake();
+
+    $user = User::factory()->unverified()->create();
+    $user->sendEmailVerificationNotification();
+
+    Notification::assertSentTo($user, VerifyEmail::class, function ($notification) use ($user) {
+        $mailMessage = $notification->toMail($user);
+        $actionUrl = $mailMessage->actionUrl;
+
+        // URL should not contain HTML-encoded ampersands
+        expect($actionUrl)->not->toContain('&amp;');
+        // URL should contain proper query string separators
+        expect($actionUrl)->toContain('?');
+        expect($actionUrl)->toContain('&');
+
+        return true;
+    });
+});
+
+test('verification fails when user is not authenticated', function (): void {
+    $user = User::factory()->unverified()->create();
+
+    $verificationUrl = URL::temporarySignedRoute(
+        'verification.verify',
+        now()->addMinutes(60),
+        ['id' => $user->id, 'hash' => sha1($user->email)]
+    );
+
+    // Not logged in - should redirect to login
+    $response = $this->get($verificationUrl);
+
+    $response->assertRedirect(route('login'));
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+});
+
+test('verification fails when logged in as different user', function (): void {
+    $user = User::factory()->unverified()->create();
+    $otherUser = User::factory()->unverified()->create();
+
+    $verificationUrl = URL::temporarySignedRoute(
+        'verification.verify',
+        now()->addMinutes(60),
+        ['id' => $user->id, 'hash' => sha1($user->email)]
+    );
+
+    // Logged in as different user - should get 403
+    $response = $this->actingAs($otherUser)->get($verificationUrl);
+
+    $response->assertStatus(403);
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+    expect($otherUser->fresh()->hasVerifiedEmail())->toBeFalse();
+});
+
+test('verification URL signature is validated', function (): void {
+    $user = User::factory()->unverified()->create();
+
+    // Manually construct URL without proper signature
+    $unsignedUrl = route('verification.verify', [
+        'id' => $user->id,
+        'hash' => sha1($user->email),
+    ]);
+
+    $response = $this->actingAs($user)->get($unsignedUrl);
+
+    $response->assertStatus(403);
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });

@@ -233,6 +233,9 @@ test('the final active admin cannot be demoted or suspended via the workspace', 
 });
 
 test('the first authenticated user is promoted to admin when no admins exist', function (): void {
+    config()->set('app.env', 'local');
+    config()->set('app.debug', true);
+
     $user = User::factory()->create([
         'name' => 'First User',
         'email' => 'first@example.com',

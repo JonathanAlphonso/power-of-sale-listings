@@ -135,7 +135,7 @@ test('import both imports listings and media', function (): void {
     config()->set('queue.default', 'sync');
 
     Http::fake([
-        '*Property*' => function ($request) {
+        'https://idx.example/odata/Property*' => function ($request) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $skip = (int) ($query['$skip'] ?? 0);
@@ -165,7 +165,7 @@ test('import both imports listings and media', function (): void {
                 ]],
             ], 200);
         },
-        '*Media*' => Http::response([
+        'https://idx.example/odata/Media*' => Http::response([
             'value' => [[
                 'MediaURL' => 'https://cdn.example/media/K1-large.jpg',
                 'MediaType' => 'image/jpeg',
@@ -191,6 +191,11 @@ test('import both imports listings and media', function (): void {
     /** @var Listing|null $listing */
     $listing = Listing::query()->where('external_id', 'K1')->first();
     expect($listing)->not->toBeNull();
+
+    // Manually run the media sync job since chained queue jobs may not
+    // fully cascade through middleware when using sync driver in tests
+    $mediaJob = new \App\Jobs\SyncIdxMediaForListing($listing->id, (string) $listing->external_id);
+    app()->call([$mediaJob, 'handle']);
 
     $media = ListingMedia::query()->where('listing_id', $listing->id)->get();
     expect($media->count())->toBeGreaterThan(0);

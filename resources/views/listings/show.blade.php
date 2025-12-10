@@ -152,6 +152,56 @@
                         </div>
                     </div>
                 @endif
+
+                @php
+                    $statusHistory = $listing->statusHistory()->limit(10)->get();
+                @endphp
+
+                @if ($statusHistory->isNotEmpty())
+                    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70">
+                        <flux:heading size="md" class="mb-4">
+                            {{ __('Status history') }}
+                        </flux:heading>
+
+                        <div class="relative">
+                            <div class="absolute top-0 bottom-0 left-3 w-0.5 bg-slate-200 dark:bg-zinc-700"></div>
+
+                            <ul class="space-y-4">
+                                @foreach ($statusHistory as $history)
+                                    @php
+                                        $statusColor = match(strtolower($history->status_label ?? $history->status_code ?? '')) {
+                                            'active', 'available' => 'bg-green-500',
+                                            'sold', 'closed' => 'bg-blue-500',
+                                            'pending', 'conditional' => 'bg-yellow-500',
+                                            'expired', 'withdrawn', 'cancelled', 'terminated' => 'bg-red-500',
+                                            default => 'bg-slate-400 dark:bg-zinc-500',
+                                        };
+                                    @endphp
+                                    <li class="relative flex items-start gap-4 pl-8">
+                                        <span class="absolute left-1.5 top-1.5 h-3 w-3 rounded-full {{ $statusColor }} ring-2 ring-white dark:ring-zinc-900"></span>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-sm font-medium text-slate-900 dark:text-zinc-100">
+                                                    {{ $history->status_label ?? $history->status_code ?? __('Status change') }}
+                                                </span>
+                                                @if ($history->changed_at)
+                                                    <span class="text-xs text-slate-500 dark:text-zinc-400">
+                                                        {{ $history->changed_at->timezone(config('app.timezone'))->format('M j, Y') }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                            @if ($history->notes)
+                                                <p class="mt-1 text-sm text-slate-600 dark:text-zinc-300">
+                                                    {{ $history->notes }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="flex flex-col gap-6">

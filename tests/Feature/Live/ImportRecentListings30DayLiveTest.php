@@ -15,8 +15,9 @@ use Carbon\CarbonImmutable;
 it('imports 30 day for-sale listings in line with live IDX count', function (): void {
     $idxConfig = config('services.idx');
 
-    if (! filter_var($idxConfig['run_live_tests'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-        $this->markTestSkipped('Set RUN_LIVE_IDX_TESTS=1 to enable live 30 day import test.');
+    // This test requires the long-running live tests flag since it imports 30 days of data
+    if (! filter_var($idxConfig['run_long_live_tests'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+        $this->markTestSkipped('Set RUN_LONG_LIVE_IDX_TESTS=1 to enable live 30 day import test.');
     }
 
     /** @var IdxClient $client */

@@ -41,6 +41,12 @@ beforeEach(function (): void {
     if (empty(config('services.idx.base_uri')) || empty(config('services.idx.token'))) {
         $this->markTestSkipped('IDX API not configured. Set IDX_BASE_URI and IDX_TOKEN in .env');
     }
+
+    // This test makes many API calls - requires long-running flag
+    $idxConfig = config('services.idx');
+    if (! filter_var($idxConfig['run_long_live_tests'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+        $this->markTestSkipped('Set RUN_LONG_LIVE_IDX_TESTS=1 to enable POS replication E2E tests.');
+    }
 });
 
 describe('POS Replication Button - Live API', function (): void {

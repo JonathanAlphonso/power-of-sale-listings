@@ -26,6 +26,25 @@ class ListingPresentation
         return '$'.number_format((float) $value, 0);
     }
 
+    public static function currencyShort(float|int|string|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return __('N/A');
+        }
+
+        $amount = (float) $value;
+
+        if ($amount >= 1000000) {
+            return '$'.number_format($amount / 1000000, 1).'M';
+        }
+
+        if ($amount >= 1000) {
+            return '$'.number_format($amount / 1000, 0).'K';
+        }
+
+        return '$'.number_format($amount, 0);
+    }
+
     public static function numeric(float|int|string|null $value, int $decimals = 0): string
     {
         if ($value === null || $value === '') {

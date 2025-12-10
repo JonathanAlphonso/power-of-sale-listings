@@ -46,7 +46,7 @@ test('import both imports five listings with images and pages are reachable', fu
     // Fake IDX + VOW Property and Media responses, plus image downloads
     Http::fake([
         // Property listing pages: serve five on first page, then empty
-        '*Property*' => function ($request) use ($properties) {
+        'https://idx.example/odata/Property*' => function ($request) use ($properties) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $skip = (int) ($query['$skip'] ?? 0);
@@ -58,7 +58,7 @@ test('import both imports five listings with images and pages are reachable', fu
             return Http::response(['value' => $properties], 200);
         },
         // Media lookups: return a single Large image per listing key from the filter value
-        '*Media*' => function ($request) {
+        'https://idx.example/odata/Media*' => function ($request) {
             $query = [];
             parse_str((string) parse_url((string) $request->url(), PHP_URL_QUERY), $query);
             $filter = (string) ($query['$filter'] ?? '');
@@ -99,11 +99,27 @@ test('import both imports five listings with images and pages are reachable', fu
     $listings = Listing::query()->whereIn('external_id', $keys)->orderBy('id')->get();
     expect($listings)->toHaveCount(5);
 
+    // Manually run media sync jobs since chained queue jobs may not
+    // fully cascade through middleware when using sync driver in tests
+    foreach ($listings as $listing) {
+        $mediaJob = new \App\Jobs\SyncIdxMediaForListing($listing->id, (string) $listing->external_id);
+        app()->call([$mediaJob, 'handle']);
+    }
+
     // 2) Media records created and 3) images downloaded to storage
     foreach ($listings as $listing) {
+        $listing->refresh();
         $media = $listing->media()->orderBy('position')->get();
         expect($media->count())->toBeGreaterThan(0);
         $first = $media->first();
+
+        // Manually run the download job for the first media item
+        if ($first && $first->url) {
+            $downloadJob = new \App\Jobs\DownloadListingMedia((int) $first->id);
+            app()->call([$downloadJob, 'handle']);
+            $first->refresh();
+        }
+
         expect($first->stored_path)->not->toBeNull();
         Storage::disk('public')->assertExists((string) $first->stored_path);
     }

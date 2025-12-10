@@ -2,6 +2,7 @@
 
 use App\Models\Listing;
 use App\Models\Municipality;
+use App\Support\MarketStatistics;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,6 +17,7 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
     use WithPagination;
 
     private const PER_PAGE_OPTIONS = [12, 24, 48];
+    private const MAX_COMPARE = 4;
 
     private const SORT_OPTIONS = [
         'modified_at_desc' => 'Recently Updated',
@@ -27,6 +29,9 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
     ];
 
     protected string $paginationTheme = 'tailwind';
+
+    /** @var array<int> */
+    public array $compareList = [];
 
     #[Url(as: 'q', except: '')]
     public string $search = '';
@@ -122,6 +127,35 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         $this->sortBy = 'modified_at_desc';
         $this->perPage = (string) self::PER_PAGE_OPTIONS[0];
         $this->resetPage();
+    }
+
+    public function toggleCompare(int $id): void
+    {
+        if (in_array($id, $this->compareList, true)) {
+            $this->compareList = array_values(array_filter(
+                $this->compareList,
+                fn ($listingId) => $listingId !== $id
+            ));
+        } elseif (count($this->compareList) < self::MAX_COMPARE) {
+            $this->compareList[] = $id;
+        }
+    }
+
+    public function clearCompareList(): void
+    {
+        $this->compareList = [];
+    }
+
+    #[Computed]
+    public function compareUrl(): string
+    {
+        return route('listings.compare', ['ids' => implode(',', $this->compareList)]);
+    }
+
+    #[Computed]
+    public function canAddToCompare(): bool
+    {
+        return count($this->compareList) < self::MAX_COMPARE;
     }
 
     #[Computed]
@@ -230,6 +264,38 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
             'beds' => $this->minBedrooms,
             'baths' => $this->minBathrooms,
         ], fn ($value) => $value !== '');
+    }
+
+    #[Computed]
+    public function statistics(): array
+    {
+        return MarketStatistics::getStatistics($this->currentFiltersForStats());
+    }
+
+    #[Computed]
+    public function weeklyTrends(): array
+    {
+        return MarketStatistics::getWeeklyTrends($this->currentFiltersForStats());
+    }
+
+    #[Computed]
+    public function dataFreshness(): array
+    {
+        return MarketStatistics::getDataFreshness();
+    }
+
+    private function currentFiltersForStats(): array
+    {
+        return array_filter([
+            'search' => $this->search,
+            'status' => $this->status,
+            'municipality_id' => $this->municipalityFilter(),
+            'property_type' => $this->propertyType,
+            'min_price' => $this->parsePrice($this->minPrice),
+            'max_price' => $this->parsePrice($this->maxPrice),
+            'min_bedrooms' => $this->parseInteger($this->minBedrooms),
+            'min_bathrooms' => $this->parseFloat($this->minBathrooms),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     private function municipalityFilter(): ?int
@@ -451,6 +517,177 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         </div>
     </div>
 
+    <!-- Statistics Summary -->
+    @if ($this->statistics['total'] > 0)
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                        <flux:icon name="home" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Total listings') }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                                {{ number_format($this->statistics['total']) }}
+                            </p>
+                            @if ($this->statistics['new_this_week'] > 0)
+                                <span class="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    +{{ $this->statistics['new_this_week'] }} {{ __('this week') }}
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                        <flux:icon name="chart-bar" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Median price') }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                                {{ $this->statistics['median_price'] ? \App\Support\ListingPresentation::currency($this->statistics['median_price']) : '—' }}
+                            </p>
+                            @if ($this->weeklyTrends['price_change_percent'] !== null)
+                                @if ($this->weeklyTrends['price_change_percent'] < 0)
+                                    <span class="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400" title="{{ __('Week over week change') }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="mr-0.5 h-3 w-3"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6 9 12.75l4.286-4.286a11.948 11.948 0 0 1 4.306 6.43l.776 2.898m0 0 3.182-5.511m-3.182 5.51-5.511-3.181" /></svg>
+                                        {{ number_format(abs($this->weeklyTrends['price_change_percent']), 1) }}%
+                                    </span>
+                                @elseif ($this->weeklyTrends['price_change_percent'] > 0)
+                                    <span class="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400" title="{{ __('Week over week change') }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="mr-0.5 h-3 w-3"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" /></svg>
+                                        {{ number_format(abs($this->weeklyTrends['price_change_percent']), 1) }}%
+                                    </span>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        <flux:icon name="currency-dollar" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Price range') }}</p>
+                        <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                            @if ($this->statistics['min_price'] && $this->statistics['max_price'])
+                                {{ \App\Support\ListingPresentation::currencyShort($this->statistics['min_price']) }} – {{ \App\Support\ListingPresentation::currencyShort($this->statistics['max_price']) }}
+                            @else
+                                —
+                            @endif
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                        <flux:icon name="clock" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Avg. days on market') }}</p>
+                        <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                            {{ $this->statistics['avg_days_on_market'] !== null ? $this->statistics['avg_days_on_market'] . ' ' . __('days') : '—' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                        <flux:icon name="arrow-trending-down" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Price reductions') }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                                {{ number_format($this->statistics['price_reductions']) }}
+                            </p>
+                            @if ($this->statistics['avg_price_reduction_percent'])
+                                <span class="text-xs text-slate-500 dark:text-zinc-400">
+                                    ({{ __('avg') }} {{ $this->statistics['avg_price_reduction_percent'] }}%)
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900/70">
+                <div class="flex items-center gap-3">
+                    @php
+                        $freshnessStatus = $this->dataFreshness['status'];
+                        $freshnessColors = [
+                            'fresh' => ['bg' => 'bg-emerald-100 dark:bg-emerald-900/30', 'text' => 'text-emerald-600 dark:text-emerald-400'],
+                            'recent' => ['bg' => 'bg-blue-100 dark:bg-blue-900/30', 'text' => 'text-blue-600 dark:text-blue-400'],
+                            'stale' => ['bg' => 'bg-amber-100 dark:bg-amber-900/30', 'text' => 'text-amber-600 dark:text-amber-400'],
+                            'outdated' => ['bg' => 'bg-red-100 dark:bg-red-900/30', 'text' => 'text-red-600 dark:text-red-400'],
+                            'unknown' => ['bg' => 'bg-slate-100 dark:bg-zinc-800', 'text' => 'text-slate-500 dark:text-zinc-400'],
+                        ];
+                        $colors = $freshnessColors[$freshnessStatus] ?? $freshnessColors['unknown'];
+                    @endphp
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg {{ $colors['bg'] }} {{ $colors['text'] }}">
+                        <flux:icon name="arrow-path" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">{{ __('Data freshness') }}</p>
+                        <p class="text-sm font-semibold text-slate-900 dark:text-white">
+                            {{ $this->dataFreshness['label'] }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Compare Bar (sticky) -->
+    @if (count($this->compareList) > 0)
+        <div class="sticky top-0 z-20 mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-lg dark:border-emerald-800 dark:bg-emerald-900/30">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <flux:icon name="scale" class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <span class="font-medium text-emerald-800 dark:text-emerald-200">
+                        {{ trans_choice(':count listing selected|:count listings selected', count($this->compareList), ['count' => count($this->compareList)]) }}
+                    </span>
+                    @if (!$this->canAddToCompare)
+                        <span class="text-sm text-emerald-600 dark:text-emerald-400">
+                            ({{ __('max :max', ['max' => 4]) }})
+                        </span>
+                    @endif
+                </div>
+                <div class="flex items-center gap-2">
+                    <flux:button
+                        variant="subtle"
+                        size="sm"
+                        icon="x-mark"
+                        wire:click="clearCompareList"
+                    >
+                        {{ __('Clear') }}
+                    </flux:button>
+                    <flux:button
+                        variant="primary"
+                        size="sm"
+                        icon="scale"
+                        :href="$this->compareUrl"
+                        wire:navigate
+                    >
+                        {{ __('Compare') }}
+                    </flux:button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Listings Grid -->
     <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50">
         @forelse ($this->listings as $listing)
@@ -459,25 +696,38 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
                 $primaryMedia = $listing->media->firstWhere('is_primary', true) ?? $listing->media->first();
                 $address = $listing->street_address ?? __('Address unavailable');
                 $location = collect([$listing->city, $listing->province, $listing->postal_code])->filter()->implode(', ');
+                $isInCompare = in_array($listing->id, $this->compareList, true);
             @endphp
 
-            <a
-                href="{{ route('listings.show', $listing) }}"
-                class="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/70"
-                wire:navigate
-            >
-                @if ($primaryMedia !== null)
-                    <img
-                        src="{{ $primaryMedia->public_url }}"
-                        alt="{{ $primaryMedia->label ?? $address }}"
-                        class="aspect-video w-full object-cover"
-                        loading="lazy"
-                    />
-                @else
-                    <div class="flex aspect-video items-center justify-center bg-slate-100 text-4xl text-slate-300 dark:bg-zinc-800 dark:text-zinc-600">
-                        <flux:icon name="photo" />
-                    </div>
-                @endif
+            <div class="group relative flex h-full flex-col overflow-hidden rounded-2xl border {{ $isInCompare ? 'border-emerald-400 ring-2 ring-emerald-400/50' : 'border-slate-200' }} bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900/70 {{ $isInCompare ? 'dark:border-emerald-600 dark:ring-emerald-600/50' : '' }}">
+                <a href="{{ route('listings.show', $listing) }}" class="block" wire:navigate>
+                    @if ($primaryMedia !== null)
+                        <img
+                            src="{{ $primaryMedia->public_url }}"
+                            alt="{{ $primaryMedia->label ?? $address }}"
+                            class="aspect-video w-full object-cover"
+                            loading="lazy"
+                        />
+                    @else
+                        <div class="flex aspect-video items-center justify-center bg-slate-100 text-4xl text-slate-300 dark:bg-zinc-800 dark:text-zinc-600">
+                            <flux:icon name="photo" />
+                        </div>
+                    @endif
+                </a>
+
+                <!-- Compare checkbox -->
+                <button
+                    wire:click="toggleCompare({{ $listing->id }})"
+                    class="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full {{ $isInCompare ? 'bg-emerald-500 text-white' : 'bg-white/90 text-slate-600 hover:bg-emerald-500 hover:text-white' }} shadow-lg transition dark:bg-zinc-800/90 dark:text-zinc-300 {{ $isInCompare ? '' : 'dark:hover:bg-emerald-500 dark:hover:text-white' }}"
+                    title="{{ $isInCompare ? __('Remove from comparison') : __('Add to comparison') }}"
+                    @if (!$this->canAddToCompare && !$isInCompare) disabled @endif
+                >
+                    @if ($isInCompare)
+                        <flux:icon name="check" class="h-5 w-5" />
+                    @else
+                        <flux:icon name="scale" class="h-4 w-4" />
+                    @endif
+                </button>
 
                 <div class="flex flex-1 flex-col gap-4 p-6">
                     <div class="flex items-start justify-between gap-3">
@@ -503,9 +753,28 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
                             <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
                                 {{ __('List price') }}
                             </p>
-                            <p class="text-base font-semibold text-slate-900 dark:text-white">
-                                {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
-                            </p>
+                            <div class="flex items-center gap-2">
+                                <p class="text-base font-semibold text-slate-900 dark:text-white">
+                                    {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
+                                </p>
+                                @if ($listing->original_list_price && $listing->list_price && $listing->original_list_price != $listing->list_price)
+                                    @php
+                                        $priceDiff = $listing->list_price - $listing->original_list_price;
+                                        $percentChange = ($priceDiff / $listing->original_list_price) * 100;
+                                    @endphp
+                                    @if ($priceDiff < 0)
+                                        <span class="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400" title="{{ __('Reduced from') }} {{ \App\Support\ListingPresentation::currency($listing->original_list_price) }}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="mr-0.5 h-3 w-3"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6 9 12.75l4.286-4.286a11.948 11.948 0 0 1 4.306 6.43l.776 2.898m0 0 3.182-5.511m-3.182 5.51-5.511-3.181" /></svg>
+                                            {{ number_format(abs($percentChange), 0) }}%
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400" title="{{ __('Increased from') }} {{ \App\Support\ListingPresentation::currency($listing->original_list_price) }}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="mr-0.5 h-3 w-3"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" /></svg>
+                                            {{ number_format(abs($percentChange), 0) }}%
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
                         </div>
 
                         <div>
@@ -551,7 +820,7 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
                         </div>
                     </div>
                 </div>
-            </a>
+            </div>
         @empty
             <div class="sm:col-span-2 lg:col-span-3">
                 <flux:callout class="rounded-2xl">

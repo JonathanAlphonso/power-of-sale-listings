@@ -9,15 +9,17 @@ use Carbon\CarbonImmutable;
 test('live 24h import button matches IDX API count', function (): void {
     $idxConfig = config('services.idx');
 
-    if (! filter_var($idxConfig['run_live_tests'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-        $this->markTestSkipped('Set RUN_LIVE_IDX_TESTS=1 to enable live 24h import E2E test.');
-    }
-
     $baseUri = rtrim((string) ($idxConfig['base_uri'] ?? ''), '/');
     $token = (string) ($idxConfig['token'] ?? '');
 
-    expect($baseUri)->not->toBe('');
-    expect($token)->not->toBe('');
+    // This test requires long-running flag since it enumerates many pages and runs an import
+    if (! filter_var($idxConfig['run_long_live_tests'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+        $this->markTestSkipped('Set RUN_LONG_LIVE_IDX_TESTS=1 to enable live 24h import E2E test.');
+    }
+
+    if ($baseUri === '' || $token === '') {
+        $this->markTestSkipped('IDX API not configured. Set IDX_BASE_URI and IDX_TOKEN in .env');
+    }
 
     config()->set('queue.default', 'sync');
 

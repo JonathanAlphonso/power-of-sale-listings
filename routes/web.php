@@ -10,6 +10,7 @@ use Livewire\Volt\Volt;
 Route::get('/', HomeController::class)->name('home');
 
 Volt::route('listings', 'listings.index')->name('listings.index');
+Volt::route('listings/compare', 'listings.compare')->name('listings.compare');
 
 Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
 

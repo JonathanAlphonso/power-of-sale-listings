@@ -163,3 +163,45 @@ test('admins can generate fake listings for testing', function (): void {
 
     expect(Listing::query()->count())->toBe(25);
 });
+
+test('admin listings page displays market statistics', function (): void {
+    $admin = User::factory()->admin()->create();
+
+    // Create listings with various statuses and prices
+    Listing::factory()->create([
+        'display_status' => 'Active',
+        'list_price' => 400000,
+        'original_list_price' => 450000, // Price reduction
+        'days_on_market' => 10,
+        'created_at' => now()->subDays(3),
+    ]);
+
+    Listing::factory()->create([
+        'display_status' => 'Available',
+        'list_price' => 600000,
+        'original_list_price' => 600000,
+        'days_on_market' => 20,
+        'created_at' => now()->subDays(5),
+    ]);
+
+    Listing::factory()->create([
+        'display_status' => 'Sold',
+        'list_price' => 800000,
+        'original_list_price' => 850000, // Price reduction
+        'days_on_market' => 30,
+        'created_at' => now()->subDays(10),
+    ]);
+
+    $this->actingAs($admin);
+    Volt::actingAs($admin);
+
+    Volt::test('admin.listings.index')
+        ->assertSee('Total Listings')
+        ->assertSee('3') // Total count
+        ->assertSee('Active')
+        ->assertSee('Avg. Price')
+        ->assertSee('Avg. Days on Market')
+        ->assertSee('20 days') // Average DOM
+        ->assertSee('new this week')
+        ->assertSee('price reductions');
+});

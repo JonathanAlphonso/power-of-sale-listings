@@ -67,26 +67,26 @@ Media Resource Requirements (from API Docs)
 
 ## M3 – Public Portal & Notifications
 
--   [ ] Build public search page with Volt components for filters (price, municipality, property type) and sortable result tables.
--   [ ] Implement listing detail page for public users with gallery, property facts, contact actions, and compliance banners.
--   [ ] Add saved search feature for authenticated users, including create/edit/delete flows and validation.
--   [ ] Configure email notification preferences using Fortify profile settings and Volt appearance page integration.
--   [ ] Create notification dispatch jobs leveraging queued mail; use Markdown mail templates aligned with brand styling.
--   [ ] Add informational static pages (FAQ, compliance, contact) using Volt or Blade partials with shared layout.
--   [ ] Introduce rate limiting for contact forms and notification endpoints to prevent abuse.
--   [ ] Write HTTP and Volt tests covering public search, listing view, saved search CRUD, and notification opt-in/out.
--   [ ] Update README with public feature overview and saved search instructions.
+-   [x] Build public search page with Volt components for filters (price, municipality, property type) and sortable result tables.
+-   [x] Implement listing detail page for public users with gallery, property facts, contact actions, and compliance banners.
+-   [x] Add saved search feature for authenticated users, including create/edit/delete flows and validation.
+-   [x] Configure email notification preferences using Fortify profile settings and Volt appearance page integration.
+-   [x] Create notification dispatch jobs leveraging queued mail; use Markdown mail templates aligned with brand styling.
+-   [x] Add informational static pages (FAQ, compliance, contact) using Volt or Blade partials with shared layout.
+-   [x] Introduce rate limiting for contact forms and notification endpoints to prevent abuse.
+-   [x] Write HTTP and Volt tests covering public search, listing view, saved search CRUD, and notification opt-in/out.
+-   [x] Update README with public feature overview and saved search instructions.
 
 ## M4 – Hardening & Launch Prep
 
--   [ ] Profile critical queries; add eager loading, scopes, and indexes where necessary to meet performance targets.
--   [ ] Evaluate caching strategy (per-query cache, cached counts) and document when to promote to Redis.
--   [ ] Implement security headers (CSP, HSTS, X-Frame-Options) via middleware or config; confirm against OWASP checklist.
--   [ ] Review Fortify settings for password confirmation, 2FA prompts, and recovery codes; update policies/tests accordingly.
+-   [x] Profile critical queries; add eager loading, scopes, and indexes where necessary to meet performance targets.
+-   [x] Evaluate caching strategy (per-query cache, cached counts) and document when to promote to Redis.
+-   [x] Implement security headers (CSP, HSTS, X-Frame-Options) via middleware or config; confirm against OWASP checklist.
+-   [x] Review Fortify settings for password confirmation, 2FA prompts, and recovery codes; update policies/tests accordingly.
 -   [ ] Configure scheduled backups and verify restore procedure in non-production environment.
 -   [ ] Conduct load tests on key endpoints; record methodology and outcomes in `docs/runbook.md`.
--   [ ] Run `composer audit`, `npm audit`, and `vendor/bin/pint --dirty`; address findings or document mitigation.
--   [ ] Produce deployment checklist including environment variables, artisan commands, queue workers, and roll-back plan.
+-   [x] Run `composer audit`, `npm audit`, and `vendor/bin/pint --dirty`; address findings or document mitigation.
+-   [x] Produce deployment checklist including environment variables, artisan commands, queue workers, and roll-back plan.
 -   [ ] Run stage-to-production rehearsal, including database snapshot, migration dry-run, and smoke test validation.
 
 ## Cross-Cutting & Continuous Tasks

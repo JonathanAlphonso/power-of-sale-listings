@@ -147,6 +147,85 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->resetSuppressionForms();
     }
 
+    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        Gate::authorize('viewAny', Listing::class);
+
+        $municipalityId = $this->municipalityFilter();
+
+        $query = Listing::query()
+            ->with(['source:id,name', 'municipality:id,name'])
+            ->when($this->search !== '', function (Builder $builder): void {
+                $builder->where(function (Builder $query): void {
+                    $query
+                        ->where('mls_number', 'like', '%' . $this->search . '%')
+                        ->orWhere('street_address', 'like', '%' . $this->search . '%')
+                        ->orWhere('city', 'like', '%' . $this->search . '%')
+                        ->orWhere('postal_code', 'like', '%' . $this->search . '%');
+                });
+            })
+            ->when($this->status !== '', fn (Builder $builder): Builder => $builder->where('display_status', $this->status))
+            ->when($municipalityId !== null, fn (Builder $builder): Builder => $builder->where('municipality_id', $municipalityId))
+            ->orderByDesc('modified_at');
+
+        $filename = 'listings-export-' . now()->format('Y-m-d-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $output = fopen('php://output', 'w');
+
+            // CSV headers
+            fputcsv($output, [
+                'MLS Number',
+                'Status',
+                'Address',
+                'City',
+                'Province',
+                'Postal Code',
+                'Municipality',
+                'Property Type',
+                'List Price',
+                'Original Price',
+                'Bedrooms',
+                'Bathrooms',
+                'Square Feet',
+                'Days on Market',
+                'Listed At',
+                'Modified At',
+                'Source',
+            ]);
+
+            // Stream data in chunks
+            $query->chunk(500, function ($listings) use ($output): void {
+                foreach ($listings as $listing) {
+                    fputcsv($output, [
+                        $listing->mls_number,
+                        $listing->display_status,
+                        $listing->street_address,
+                        $listing->city,
+                        $listing->province,
+                        $listing->postal_code,
+                        $listing->municipality?->name,
+                        $listing->property_type,
+                        $listing->list_price,
+                        $listing->original_list_price,
+                        $listing->bedrooms,
+                        $listing->bathrooms,
+                        $listing->square_feet,
+                        $listing->days_on_market,
+                        $listing->listed_at?->toDateTimeString(),
+                        $listing->modified_at?->toDateTimeString(),
+                        $listing->source?->name,
+                    ]);
+                }
+            });
+
+            fclose($output);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     public function suppressSelected(): void
     {
         $listing = $this->selectedListing;
@@ -437,6 +516,51 @@ new #[Layout('components.layouts.app')] class extends Component {
         return $listing->suppressions;
     }
 
+    #[Computed]
+    public function marketStatistics(): array
+    {
+        $query = Listing::query();
+
+        $totalCount = $query->count();
+        $activeCount = (clone $query)->where('display_status', 'like', '%Active%')->orWhere('display_status', 'like', '%Available%')->count();
+
+        $priceStats = (clone $query)
+            ->whereNotNull('list_price')
+            ->where('list_price', '>', 0)
+            ->selectRaw('MIN(list_price) as min_price, MAX(list_price) as max_price, AVG(list_price) as avg_price, COUNT(*) as count')
+            ->first();
+
+        $avgDaysOnMarket = (clone $query)
+            ->whereNotNull('days_on_market')
+            ->avg('days_on_market');
+
+        $newThisWeek = (clone $query)
+            ->where('created_at', '>=', now()->subWeek())
+            ->count();
+
+        $priceReductions = (clone $query)
+            ->whereNotNull('original_list_price')
+            ->whereNotNull('list_price')
+            ->whereColumn('list_price', '<', 'original_list_price')
+            ->count();
+
+        $suppressedCount = $this->suppressionAvailable
+            ? Listing::suppressed()->count()
+            : 0;
+
+        return [
+            'total' => $totalCount,
+            'active' => $activeCount,
+            'min_price' => $priceStats?->min_price,
+            'max_price' => $priceStats?->max_price,
+            'avg_price' => $priceStats?->avg_price,
+            'avg_days_on_market' => $avgDaysOnMarket !== null ? round((float) $avgDaysOnMarket) : null,
+            'new_this_week' => $newThisWeek,
+            'price_reductions' => $priceReductions,
+            'suppressed' => $suppressedCount,
+        ];
+    }
+
     private function municipalityFilter(): ?int
     {
         if ($this->municipalityId === null || $this->municipalityId === '') {
@@ -511,6 +635,107 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
             {{ __('Browse, filter, and preview canonical listing records ingested into the platform.') }}
         </flux:text>
+    </div>
+
+    @php
+        $stats = $this->marketStatistics;
+    @endphp
+
+    <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                    <flux:icon name="building-office-2" class="h-5 w-5" />
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ __('Total Listings') }}</p>
+                    <p class="text-xl font-semibold text-zinc-900 dark:text-white">{{ number_format($stats['total']) }}</p>
+                </div>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <span class="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <flux:icon name="arrow-trending-up" class="h-3 w-3" />
+                    {{ number_format($stats['new_this_week']) }}
+                </span>
+                <span>{{ __('new this week') }}</span>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
+                    <flux:icon name="check-circle" class="h-5 w-5" />
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ __('Active') }}</p>
+                    <p class="text-xl font-semibold text-zinc-900 dark:text-white">{{ number_format($stats['active']) }}</p>
+                </div>
+            </div>
+            @if ($stats['total'] > 0)
+                <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ number_format(($stats['active'] / $stats['total']) * 100, 1) }}% {{ __('of total') }}
+                </div>
+            @endif
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
+                    <flux:icon name="currency-dollar" class="h-5 w-5" />
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ __('Avg. Price') }}</p>
+                    <p class="text-xl font-semibold text-zinc-900 dark:text-white">
+                        {{ $stats['avg_price'] ? \App\Support\ListingPresentation::currencyShort($stats['avg_price']) : __('N/A') }}
+                    </p>
+                </div>
+            </div>
+            <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                @if ($stats['min_price'] && $stats['max_price'])
+                    {{ \App\Support\ListingPresentation::currencyShort($stats['min_price']) }} – {{ \App\Support\ListingPresentation::currencyShort($stats['max_price']) }}
+                @else
+                    {{ __('No price data') }}
+                @endif
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                    <flux:icon name="clock" class="h-5 w-5" />
+                </div>
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ __('Avg. Days on Market') }}</p>
+                    <p class="text-xl font-semibold text-zinc-900 dark:text-white">
+                        {{ $stats['avg_days_on_market'] !== null ? $stats['avg_days_on_market'] . ' ' . __('days') : __('N/A') }}
+                    </p>
+                </div>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <span class="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <flux:icon name="arrow-down" class="h-3 w-3" />
+                    {{ number_format($stats['price_reductions']) }}
+                </span>
+                <span>{{ __('price reductions') }}</span>
+            </div>
+        </div>
+
+        @if ($suppressionAvailable)
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400">
+                        <flux:icon name="eye-slash" class="h-5 w-5" />
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ __('Suppressed') }}</p>
+                        <p class="text-xl font-semibold text-zinc-900 dark:text-white">{{ number_format($stats['suppressed']) }}</p>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ __('Hidden from public view') }}
+                </div>
+            </div>
+        @endif
     </div>
 
     @include('livewire.admin.listings.partials.filters')

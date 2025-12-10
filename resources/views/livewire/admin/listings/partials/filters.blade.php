@@ -36,12 +36,28 @@
         @endforeach
     </flux:select>
 
-    <flux:button
-        variant="subtle"
-        icon="arrow-path"
-        class="sm:col-span-2 lg:col-span-1 sm:self-end"
-        wire:click="resetFilters"
-    >
-        {{ __('Reset filters') }}
-    </flux:button>
+    <div class="flex items-center gap-2 sm:col-span-2 lg:col-span-1 sm:self-end">
+        <flux:button
+            variant="subtle"
+            icon="arrow-path"
+            wire:click="resetFilters"
+        >
+            {{ __('Reset filters') }}
+        </flux:button>
+
+        <flux:button
+            variant="primary"
+            icon="arrow-down-tray"
+            wire:click="exportCsv"
+            wire:loading.attr="disabled"
+            wire:target="exportCsv"
+        >
+            <span wire:loading.remove wire:target="exportCsv">
+                {{ __('Export CSV') }}
+            </span>
+            <span wire:loading wire:target="exportCsv">
+                {{ __('Exporting...') }}
+            </span>
+        </flux:button>
+    </div>
 </div>

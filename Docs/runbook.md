@@ -102,23 +102,123 @@ GitHub Actions replicate these commands for every push/PR to `develop` and `main
 
 ## Deployment Checklist (Forge or similar)
 
-1. Provision server with PHP 8.3, Node 20, MySQL 8.
-2. Point Forge site to repository and target branch.
-3. Set environment variables (`APP_ENV=production`, `APP_DEBUG=false`, DB credentials, mail driver, queue driver).
-4. Deploy script sequence:
+### Pre-Deployment
+
+1. **Security Audits**
+   - Run `composer audit` and address any critical/high vulnerabilities
+   - Run `npm audit` and fix with `npm audit fix`
+   - Run `vendor/bin/pint --dirty` to ensure code formatting
+
+2. **Environment Preparation**
+   - Prepare production `.env` with all required variables (see below)
+   - Remove debug credentials and demo passwords
+   - Set unique `APP_KEY` for production (never reuse dev keys)
+
+3. **Database Backup**
+   - Take full database backup before migration
+   - Document rollback procedure
+
+### Server Provisioning
+
+1. **System Requirements**
+   - PHP 8.3+ with extensions: `bcmath`, `ctype`, `curl`, `dom`, `fileinfo`, `json`, `mbstring`, `openssl`, `pcre`, `pdo`, `tokenizer`, `xml`, `intl`
+   - Node 20+
+   - MySQL 8.0+ (or compatible)
+   - Redis (optional, for high-traffic caching/queues)
+
+2. **Required Environment Variables**
    ```bash
-   composer install --no-dev --optimize-autoloader
-   php artisan migrate --force
-   npm ci
-   npm run build
-   php artisan config:cache
-   php artisan route:cache
-   php artisan view:cache
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_URL=https://your-domain.com
+   APP_KEY=base64:... # Generate with php artisan key:generate
+
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=pos_production
+   DB_USERNAME=...
+   DB_PASSWORD=...
+
+   MAIL_MAILER=smtp
+   MAIL_HOST=...
+   MAIL_PORT=587
+   MAIL_USERNAME=...
+   MAIL_PASSWORD=...
+   MAIL_FROM_ADDRESS=noreply@your-domain.com
+
+   CACHE_STORE=database  # or redis
+   QUEUE_CONNECTION=database  # or redis
+   SESSION_DRIVER=database
+
+   # IDX API (required for data feeds)
+   IDX_BASE_URI=https://query.ampre.ca/odata/
+   IDX_TOKEN=...
+
+   # Media storage
+   MEDIA_DISK=public
+   MEDIA_AUTO_DOWNLOAD=true
    ```
-5. Link storage (`php artisan storage:link`) if not already configured.
-6. Start queue worker (`php artisan queue:work --sleep=3 --tries=3` under Forge daemon).
-7. Add scheduler (`* * * * * php artisan schedule:run`).
-8. Enable HTTPS via Let’s Encrypt and verify `APP_URL`.
+
+### Deployment Script
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Install dependencies
+composer install --no-dev --optimize-autoloader
+
+# Run migrations with backup
+php artisan migrate --force
+
+# Build frontend assets
+npm ci
+npm run build
+
+# Cache configuration
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache
+
+# Link storage (first deploy only)
+php artisan storage:link
+
+# Restart queue workers
+php artisan queue:restart
+```
+
+### Post-Deployment
+
+1. **Queue Workers** (Forge Daemon or Supervisor)
+   ```bash
+   php artisan queue:work --sleep=3 --tries=3 --timeout=1800
+   ```
+
+2. **Scheduler** (Crontab)
+   ```bash
+   * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
+   ```
+
+3. **SSL/TLS**
+   - Enable HTTPS via Let's Encrypt
+   - Verify `APP_URL` uses `https://`
+   - Test HSTS headers are present
+
+4. **Smoke Tests**
+   - Verify homepage loads
+   - Test login/logout flow
+   - Verify admin dashboard access
+   - Check IDX data feed connectivity
+   - Confirm queue workers are processing
+
+### Rollback Procedure
+
+1. Restore previous deployment code
+2. Restore database from backup if migrations affected data
+3. Clear caches: `php artisan cache:clear && php artisan config:clear`
+4. Restart queue workers
 
 ## Troubleshooting Reference
 
@@ -386,3 +486,65 @@ Scheduled task output is logged to `storage/logs/scheduled-tasks.log`. Monitor f
 ```bash
 tail -f storage/logs/scheduled-tasks.log
 ```
+
+## Caching Strategy
+
+The application uses a layered caching approach to optimize performance while maintaining data freshness.
+
+### Cache Drivers
+
+| Environment | Driver | Notes |
+| --- | --- | --- |
+| Development | `database` | Default driver, uses `cache` table |
+| Testing | `array` | In-memory, cleared between tests |
+| Production | `database` or `redis` | Switch to Redis for high-traffic sites |
+
+To switch to Redis in production:
+```env
+CACHE_STORE=redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+```
+
+### Cached Data
+
+| Key Pattern | TTL | Purpose |
+| --- | --- | --- |
+| `db.meta.tables.*` | 60s | Database table list on homepage |
+| `db.meta.has_table.*` | 60s | Table existence checks |
+| `idx.pos.listings.*` | 5min | Homepage IDX Power of Sale listings |
+| `idx.import.*` | varies | Import job progress/status |
+| `media.*.count` | varies | Media job success/failure counters |
+
+### Cache Management Commands
+
+```bash
+# Clear all caches
+php artisan cache:clear
+
+# Clear specific caches via Tinker
+php artisan tinker
+>>> Cache::forget('idx.pos.listings.4');
+>>> Cache::flush();  # Clears everything (use with caution)
+
+# Clear config/route/view caches (deployment)
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+# Rebuild caches (production)
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Performance Considerations
+
+1. **Query Caching**: Expensive dashboard counts (total listings, average price) are computed fresh on each request. For high-traffic sites, consider caching these with 1-5 minute TTLs.
+
+2. **Redis Promotion**: Move to Redis when:
+   - Response times for cached pages exceed targets
+   - Database connection pool is saturated
+   - You need distributed cache across multiple app servers
+
+3. **Stale-While-Revalidate**: The homepage uses short TTLs (60s) for metadata to balance freshness and performance. Adjust these in `HomeController` if needed.

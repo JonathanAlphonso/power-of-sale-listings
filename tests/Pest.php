@@ -53,7 +53,8 @@ pest()->extend(Tests\TestCase::class)
         'Feature/SavedSearchTest.php',
         'Feature/StaticPagesTest.php',
         'Feature/WelcomePageProgressTest.php',
-        'Feature/DebugDatabaseTest.php'
+        'Feature/DebugDatabaseTest.php',
+        'Feature/SecurityHeadersTest.php'
     );
 
 /*

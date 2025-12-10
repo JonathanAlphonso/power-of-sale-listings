@@ -8,6 +8,7 @@ use App\Models\AnalyticsSetting;
 use App\Models\Listing;
 use App\Models\User;
 use App\Services\GoogleAnalytics\AnalyticsSummaryService;
+use App\Support\MarketStatistics;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
 
@@ -34,6 +35,7 @@ class DashboardController extends Controller
             ->get(['id', 'name', 'email', 'created_at']);
         $analyticsSetting = AnalyticsSetting::current();
         $analyticsSummary = $analyticsSummaryService->summary($analyticsSetting);
+        $dataFreshness = MarketStatistics::getDataFreshness();
 
         return view('dashboard', [
             'totalListings' => $totalListings,
@@ -44,6 +46,7 @@ class DashboardController extends Controller
             'recentUsers' => $recentUsers,
             'analyticsSetting' => $analyticsSetting,
             'analyticsSummary' => $analyticsSummary,
+            'dataFreshness' => $dataFreshness,
         ]);
     }
 }

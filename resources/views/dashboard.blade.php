@@ -70,7 +70,7 @@
         </div>
 
         <!-- Stats Grid -->
-        <div class="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <!-- Total Listings -->
             <div class="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br from-blue-500/10 to-cyan-500/10 blur-2xl transition-all group-hover:scale-150"></div>
@@ -143,6 +143,41 @@
                     </p>
                     <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
                         {{ __('Mean asking price') }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Data Freshness -->
+            @php
+                $freshnessColors = [
+                    'fresh' => ['bg' => 'bg-green-50 dark:bg-green-500/10', 'icon' => 'text-green-600 dark:text-green-400', 'badge' => 'lime', 'gradient' => 'from-green-500/10 to-emerald-500/10'],
+                    'recent' => ['bg' => 'bg-sky-50 dark:bg-sky-500/10', 'icon' => 'text-sky-600 dark:text-sky-400', 'badge' => 'sky', 'gradient' => 'from-sky-500/10 to-cyan-500/10'],
+                    'stale' => ['bg' => 'bg-amber-50 dark:bg-amber-500/10', 'icon' => 'text-amber-600 dark:text-amber-400', 'badge' => 'amber', 'gradient' => 'from-amber-500/10 to-yellow-500/10'],
+                    'outdated' => ['bg' => 'bg-red-50 dark:bg-red-500/10', 'icon' => 'text-red-600 dark:text-red-400', 'badge' => 'red', 'gradient' => 'from-red-500/10 to-rose-500/10'],
+                    'unknown' => ['bg' => 'bg-zinc-50 dark:bg-zinc-500/10', 'icon' => 'text-zinc-600 dark:text-zinc-400', 'badge' => 'zinc', 'gradient' => 'from-zinc-500/10 to-slate-500/10'],
+                ];
+                $colors = $freshnessColors[$dataFreshness['status']] ?? $freshnessColors['unknown'];
+            @endphp
+            <div class="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br {{ $colors['gradient'] }} blur-2xl transition-all group-hover:scale-150"></div>
+                <div class="relative">
+                    <div class="mb-4 inline-flex rounded-xl {{ $colors['bg'] }} p-3">
+                        <flux:icon.signal class="h-6 w-6 {{ $colors['icon'] }}" />
+                    </div>
+                    <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                        {{ __('Data Status') }}
+                    </p>
+                    <div class="mt-1">
+                        <flux:badge color="{{ $colors['badge'] }}" size="sm">
+                            {{ $dataFreshness['label'] }}
+                        </flux:badge>
+                    </div>
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
+                        @if ($dataFreshness['last_sync'])
+                            {{ __('Last sync: :time', ['time' => \Illuminate\Support\Carbon::parse($dataFreshness['last_sync'])->format('M j, g:i A')]) }}
+                        @else
+                            {{ __('No sync data available') }}
+                        @endif
                     </p>
                 </div>
             </div>

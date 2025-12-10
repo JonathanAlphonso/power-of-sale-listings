@@ -23,6 +23,35 @@
     @endphp
 
     <section class="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+        <!-- Breadcrumb Navigation -->
+        <nav class="mb-6" aria-label="Breadcrumb">
+            <ol class="flex flex-wrap items-center gap-2 text-sm">
+                <li>
+                    <a href="{{ route('home') }}" class="text-slate-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400">
+                        {{ __('Home') }}
+                    </a>
+                </li>
+                <li class="text-slate-400 dark:text-zinc-600">/</li>
+                <li>
+                    <a href="{{ route('listings.index') }}" class="text-slate-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400">
+                        {{ __('Listings') }}
+                    </a>
+                </li>
+                @if ($listing->city)
+                    <li class="text-slate-400 dark:text-zinc-600">/</li>
+                    <li>
+                        <a href="{{ route('listings.index', ['q' => $listing->city]) }}" class="text-slate-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400">
+                            {{ $listing->city }}
+                        </a>
+                    </li>
+                @endif
+                <li class="text-slate-400 dark:text-zinc-600">/</li>
+                <li class="font-medium text-slate-900 dark:text-zinc-100 truncate max-w-[200px]" aria-current="page">
+                    {{ $listing->street_address ?? __('Listing') }}
+                </li>
+            </ol>
+        </nav>
+
         <div class="flex flex-wrap items-center justify-between gap-4">
             <flux:button
                 as="a"
@@ -181,6 +210,14 @@
                         </div>
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                                {{ __('Price per sqft') }}
+                            </dt>
+                            <dd class="text-base font-semibold text-slate-900 dark:text-white">
+                                {{ \App\Support\ListingPresentation::pricePerSqft($listing->list_price, $listing->square_feet) }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
                                 {{ __('Days on market') }}
                             </dt>
                             <dd class="text-base font-semibold text-slate-900 dark:text-white">
@@ -307,5 +344,63 @@
                 </div>
             </div>
         </div>
+
+        <!-- Related Listings Section -->
+        @if (isset($relatedListings) && $relatedListings->isNotEmpty())
+            <div class="mt-12 border-t border-slate-200 pt-12 dark:border-zinc-800">
+                <flux:heading size="lg" class="mb-6">
+                    {{ __('Similar properties') }}
+                </flux:heading>
+
+                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    @foreach ($relatedListings as $related)
+                        @php
+                            $relatedMedia = $related->media->firstWhere('is_primary', true) ?? $related->media->first();
+                            $relatedAddress = $related->street_address ?? __('Address unavailable');
+                            $relatedLocation = collect([$related->city, $related->province])->filter()->implode(', ');
+                        @endphp
+
+                        <a
+                            href="{{ route('listings.show', $related) }}"
+                            class="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900/70"
+                        >
+                            @if ($relatedMedia !== null)
+                                <img
+                                    src="{{ $relatedMedia->public_url }}"
+                                    alt="{{ $relatedAddress }}"
+                                    class="aspect-video w-full object-cover"
+                                    loading="lazy"
+                                />
+                            @else
+                                <div class="flex aspect-video items-center justify-center bg-slate-100 text-3xl text-slate-300 dark:bg-zinc-800 dark:text-zinc-600">
+                                    <flux:icon name="photo" />
+                                </div>
+                            @endif
+
+                            <div class="flex flex-1 flex-col gap-2 p-4">
+                                <h3 class="text-sm font-semibold text-slate-900 group-hover:text-emerald-600 dark:text-white dark:group-hover:text-emerald-400 line-clamp-1">
+                                    {{ $relatedAddress }}
+                                </h3>
+
+                                @if ($relatedLocation !== '')
+                                    <p class="text-xs text-slate-500 dark:text-zinc-400 line-clamp-1">
+                                        {{ $relatedLocation }}
+                                    </p>
+                                @endif
+
+                                <div class="mt-auto flex items-center justify-between pt-2">
+                                    <span class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                        {{ \App\Support\ListingPresentation::currency($related->list_price) }}
+                                    </span>
+                                    <span class="text-xs text-slate-500 dark:text-zinc-400">
+                                        {{ \App\Support\ListingPresentation::pricePerSqft($related->list_price, $related->square_feet) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
     </section>
 </x-layouts.site>

@@ -56,7 +56,8 @@ pest()->extend(Tests\TestCase::class)
         'Feature/DebugDatabaseTest.php',
         'Feature/SecurityHeadersTest.php',
         'Feature/FavoritesTest.php',
-        'Feature/RecentlyViewedTest.php'
+        'Feature/RecentlyViewedTest.php',
+        'Feature/UxImprovementsTest.php'
     );
 
 /*

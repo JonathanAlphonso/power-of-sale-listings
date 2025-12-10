@@ -54,6 +54,7 @@ new #[Layout('components.layouts.site', ['title' => 'Compare Listings'])] class 
             ['key' => 'list_price', 'label' => __('List price'), 'type' => 'currency'],
             ['key' => 'original_list_price', 'label' => __('Original price'), 'type' => 'currency'],
             ['key' => 'price_change', 'label' => __('Price change'), 'type' => 'currency_change'],
+            ['key' => 'price_per_sqft', 'label' => __('Price per sqft'), 'type' => 'price_per_sqft'],
             ['key' => 'property_type', 'label' => __('Property type'), 'type' => 'text'],
             ['key' => 'bedrooms', 'label' => __('Bedrooms'), 'type' => 'numeric'],
             ['key' => 'bathrooms', 'label' => __('Bathrooms'), 'type' => 'numeric'],
@@ -220,6 +221,11 @@ new #[Layout('components.layouts.site', ['title' => 'Compare Listings'])] class 
                                         @case('numeric')
                                             <span class="font-medium">
                                                 {{ \App\Support\ListingPresentation::numeric($value) }}
+                                            </span>
+                                            @break
+                                        @case('price_per_sqft')
+                                            <span class="font-semibold">
+                                                {{ \App\Support\ListingPresentation::pricePerSqft($listing->list_price, $listing->square_feet) }}
                                             </span>
                                             @break
                                         @case('status')

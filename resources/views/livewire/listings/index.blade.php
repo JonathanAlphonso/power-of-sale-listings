@@ -146,6 +146,110 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
         $this->compareList = [];
     }
 
+    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $municipalityId = $this->municipalityFilter();
+        $minPrice = $this->parsePrice($this->minPrice);
+        $maxPrice = $this->parsePrice($this->maxPrice);
+        $minBedrooms = $this->parseInteger($this->minBedrooms);
+        $minBathrooms = $this->parseFloat($this->minBathrooms);
+
+        $query = Listing::query()
+            ->visible()
+            ->with(['source:id,name', 'municipality:id,name'])
+            ->when($this->search !== '', function (Builder $builder): void {
+                $builder->where(function (Builder $query): void {
+                    $query
+                        ->where('mls_number', 'like', '%' . $this->search . '%')
+                        ->orWhere('street_address', 'like', '%' . $this->search . '%')
+                        ->orWhere('city', 'like', '%' . $this->search . '%')
+                        ->orWhere('postal_code', 'like', '%' . $this->search . '%');
+                });
+            })
+            ->when($this->status !== '', fn (Builder $builder): Builder => $builder->where('display_status', $this->status))
+            ->when($municipalityId !== null, fn (Builder $builder): Builder => $builder->where('municipality_id', $municipalityId))
+            ->when($this->propertyType !== '', fn (Builder $builder): Builder => $builder->where('property_type', $this->propertyType))
+            ->when($minPrice !== null, fn (Builder $builder): Builder => $builder->where('list_price', '>=', $minPrice))
+            ->when($maxPrice !== null, fn (Builder $builder): Builder => $builder->where('list_price', '<=', $maxPrice))
+            ->when($minBedrooms !== null, fn (Builder $builder): Builder => $builder->where('bedrooms', '>=', $minBedrooms))
+            ->when($minBathrooms !== null, fn (Builder $builder): Builder => $builder->where('bathrooms', '>=', $minBathrooms));
+
+        $this->applySorting($query);
+
+        // Limit export to 500 listings for performance
+        $listings = $query->limit(500)->get();
+
+        $filename = 'power-of-sale-listings-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($listings) {
+            $handle = fopen('php://output', 'w');
+
+            // CSV header
+            fputcsv($handle, [
+                'MLS Number',
+                'Address',
+                'City',
+                'Province',
+                'Postal Code',
+                'List Price',
+                'Original Price',
+                'Price Change',
+                'Price/Sqft',
+                'Bedrooms',
+                'Bathrooms',
+                'Square Feet',
+                'Property Type',
+                'Status',
+                'Days on Market',
+                'Municipality',
+                'Source',
+                'Listed Date',
+                'Last Updated',
+                'URL',
+            ]);
+
+            foreach ($listings as $listing) {
+                $priceChange = null;
+                if ($listing->list_price && $listing->original_list_price) {
+                    $priceChange = $listing->list_price - $listing->original_list_price;
+                }
+
+                $pricePerSqft = null;
+                if ($listing->list_price && $listing->square_feet && $listing->square_feet > 0) {
+                    $pricePerSqft = round($listing->list_price / $listing->square_feet, 2);
+                }
+
+                fputcsv($handle, [
+                    $listing->mls_number,
+                    $listing->street_address,
+                    $listing->city,
+                    $listing->province,
+                    $listing->postal_code,
+                    $listing->list_price,
+                    $listing->original_list_price,
+                    $priceChange,
+                    $pricePerSqft,
+                    $listing->bedrooms,
+                    $listing->bathrooms,
+                    $listing->square_feet,
+                    $listing->property_type,
+                    $listing->display_status,
+                    $listing->days_on_market,
+                    $listing->municipality?->name,
+                    $listing->source?->name,
+                    $listing->listed_at?->format('Y-m-d'),
+                    $listing->modified_at?->format('Y-m-d H:i:s'),
+                    route('listings.show', $listing),
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     #[Computed]
     public function compareUrl(): string
     {
@@ -385,6 +489,16 @@ new #[Layout('components.layouts.site', ['title' => 'Current Listings'])] class 
             <flux:badge color="blue">
                 {{ trans_choice(':count listing|:count listings', $this->listings->total(), ['count' => number_format($this->listings->total())]) }}
             </flux:badge>
+
+            <flux:button
+                variant="subtle"
+                icon="arrow-down-tray"
+                size="sm"
+                wire:click="exportCsv"
+                title="{{ __('Export up to 500 listings as CSV') }}"
+            >
+                {{ __('Export CSV') }}
+            </flux:button>
 
             @auth
                 <flux:button

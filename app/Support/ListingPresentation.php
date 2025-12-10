@@ -61,4 +61,30 @@ class ListingPresentation
 
         return rtrim(rtrim($formatted, '0'), '.');
     }
+
+    /**
+     * Calculate and format price per square foot.
+     */
+    public static function pricePerSqft(float|int|string|null $price, float|int|string|null $sqft): string
+    {
+        if ($price === null || $price === '' || $sqft === null || $sqft === '' || (float) $sqft <= 0) {
+            return '—';
+        }
+
+        $pricePerSqft = (float) $price / (float) $sqft;
+
+        return '$' . number_format($pricePerSqft, 0) . '/sqft';
+    }
+
+    /**
+     * Get raw price per square foot value for comparison.
+     */
+    public static function pricePerSqftRaw(float|int|string|null $price, float|int|string|null $sqft): ?float
+    {
+        if ($price === null || $price === '' || $sqft === null || $sqft === '' || (float) $sqft <= 0) {
+            return null;
+        }
+
+        return (float) $price / (float) $sqft;
+    }
 }

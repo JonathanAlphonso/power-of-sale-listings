@@ -36,7 +36,8 @@ test('listings pagination links are rendered', function (): void {
 
     $response
         ->assertOk()
-        ->assertSee('?page=2', false);
+        // Livewire pagination uses wire:click instead of href links
+        ->assertSee('gotoPage(2', false);
 });
 
 test('guests can view a listing detail page', function (): void {

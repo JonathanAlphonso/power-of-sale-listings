@@ -54,4 +54,19 @@ trait NormalizesListingValues
             return null;
         }
     }
+
+    protected static function extractFirstArrayValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            $first = $value[0] ?? null;
+
+            return is_string($first) ? $first : null;
+        }
+
+        return is_string($value) ? $value : null;
+    }
 }

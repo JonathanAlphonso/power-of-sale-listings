@@ -177,6 +177,7 @@ class ListingUpserter
             'status_code' => $attrs['status'] ?? null,
             'transaction_type' => (string) (Arr::get($raw, 'TransactionType') ?? 'For Sale'),
             'availability' => $availability,
+            'property_class' => Arr::get($raw, 'PropertyType'),
             'property_type' => $attrs['property_type'] ?? null,
             'property_style' => $attrs['property_sub_type'] ?? null,
             'street_number' => Arr::get($raw, 'StreetNumber'),
@@ -184,13 +185,23 @@ class ListingUpserter
             'street_address' => $attrs['address'] ?? null,
             'public_remarks' => is_string($publicRemarks) ? (string) $publicRemarks : '',
             'unit_number' => Arr::get($raw, 'UnitNumber'),
-            'city' => $attrs['city'] ?? null,
+            'city' => $this->normalizeCity($attrs['city'] ?? null),
             'province' => $province,
             'postal_code' => $attrs['postal_code'] ?? null,
             'list_price' => $attrs['list_price'] ?? null,
             'original_list_price' => Arr::get($raw, 'OriginalListPrice'),
             'bedrooms' => Arr::get($raw, 'BedroomsTotal'),
             'bathrooms' => Arr::get($raw, 'BathroomsTotalInteger'),
+            'square_feet' => Arr::get($raw, 'BuildingAreaTotal'),
+            'lot_size_area' => Arr::get($raw, 'LotSizeArea'),
+            'lot_size_units' => Arr::get($raw, 'LotSizeAreaUnits') ?? Arr::get($raw, 'LotSizeUnits'),
+            'lot_depth' => Arr::get($raw, 'LotDepth'),
+            'lot_width' => Arr::get($raw, 'LotWidth'),
+            'stories' => Arr::get($raw, 'LegalStories'),
+            'approximate_age' => Arr::get($raw, 'ApproximateAge'),
+            'structure_type' => $this->extractFirstArrayValue(Arr::get($raw, 'StructureType')),
+            'tax_annual_amount' => Arr::get($raw, 'TaxAnnualAmount'),
+            'association_fee' => Arr::get($raw, 'AssociationFee'),
             'days_on_market' => Arr::get($raw, 'DaysOnMarket'),
             'listed_at' => $this->resolveListedAt($raw, $syncedAt),
             'modified_at' => $attrs['modified_at'] ?? null,
@@ -257,6 +268,42 @@ class ListingUpserter
                 throw $e;
             }
         }
+    }
+
+    /**
+     * Normalize city names by removing MLS district codes.
+     *
+     * Examples: "Toronto C08" -> "Toronto", "Mississauga W05" -> "Mississauga"
+     */
+    private function normalizeCity(?string $city): ?string
+    {
+        if ($city === null || $city === '') {
+            return null;
+        }
+
+        // Remove trailing MLS district codes (e.g., "C08", "E01", "W10")
+        // Pattern: space followed by letter (C/E/W/N/S) and 1-2 digits at end
+        $normalized = preg_replace('/\s+[CEWNS]\d{1,2}$/i', '', trim($city));
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * Extract first value from array or return string value.
+     */
+    private function extractFirstArrayValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            $first = $value[0] ?? null;
+
+            return is_string($first) ? $first : null;
+        }
+
+        return is_string($value) ? $value : null;
     }
 
     /**

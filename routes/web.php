@@ -9,7 +9,7 @@ use Livewire\Volt\Volt;
 
 Route::get('/', HomeController::class)->name('home');
 
-Route::get('listings', [ListingsController::class, 'index'])->name('listings.index');
+Volt::route('listings', 'listings.index')->name('listings.index');
 
 Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
 

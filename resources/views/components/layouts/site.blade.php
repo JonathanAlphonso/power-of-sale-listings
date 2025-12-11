@@ -29,8 +29,10 @@
             <flux:navbar class="-mb-px hidden gap-2 lg:flex">
                 <flux:navbar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                     {{ __('Home') }}</flux:navbar.item>
-                <flux:navbar.item :href="route('listings.index')" :current="request()->routeIs('listings.index')"
+                <flux:navbar.item :href="route('listings.index')" :current="request()->routeIs('listings.index') && !request()->has('view')"
                     wire:navigate>{{ __('Listings') }}</flux:navbar.item>
+                <flux:navbar.item href="{{ route('listings.index', ['view' => 'map']) }}" :current="request()->routeIs('listings.index') && request()->query('view') === 'map'"
+                    wire:navigate>{{ __('Map Search') }}</flux:navbar.item>
                 <flux:navbar.item href="{{ $homeUrl }}#product" :current="false">{{ __('Platform') }}</flux:navbar.item>
                 <flux:navbar.item href="{{ $homeUrl }}#pipeline" :current="false">{{ __('Pipeline') }}
                 </flux:navbar.item>
@@ -99,9 +101,13 @@
                 <flux:sidebar.item :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                     {{ __('Home') }}
                 </flux:sidebar.item>
-                <flux:sidebar.item :href="route('listings.index')" :current="request()->routeIs('listings.index')"
+                <flux:sidebar.item :href="route('listings.index')" :current="request()->routeIs('listings.index') && !request()->has('view')"
                     wire:navigate>
                     {{ __('Listings') }}
+                </flux:sidebar.item>
+                <flux:sidebar.item href="{{ route('listings.index', ['view' => 'map']) }}" :current="request()->routeIs('listings.index') && request()->query('view') === 'map'"
+                    wire:navigate>
+                    {{ __('Map Search') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item href="{{ $homeUrl }}#product" :current="false">
                     {{ __('Platform') }}

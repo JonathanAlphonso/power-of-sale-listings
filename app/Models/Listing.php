@@ -22,10 +22,85 @@ class Listing extends Model
     use InteractsWithListingPayload;
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::created(function (Listing $listing): void {
+            if (! $listing->slug) {
+                $listing->slug = $listing->generateSlug();
+                $listing->saveQuietly();
+            }
+        });
+
+        static::updating(function (Listing $listing): void {
+            if ($listing->isDirty(['street_number', 'street_name', 'unit_number', 'city'])) {
+                $listing->slug = $listing->generateSlug();
+            }
+        });
+    }
+
+    public function generateSlug(): string
+    {
+        $parts = [];
+
+        // Unit number comes first (like HouseSigma: 208-236-albion-rd)
+        // Extract just the numeric portion from unit numbers like "Suite 513" or "Apt. 123"
+        if ($this->unit_number) {
+            $unitNumber = preg_replace('/[^0-9]/', '', $this->unit_number);
+            if ($unitNumber !== '') {
+                $parts[] = $unitNumber;
+            }
+        }
+
+        if ($this->street_number) {
+            $parts[] = $this->street_number;
+        }
+
+        if ($this->street_name) {
+            $parts[] = $this->street_name;
+        }
+
+        if ($this->city) {
+            $parts[] = $this->city;
+        }
+
+        $baseSlug = Str::slug(implode(' ', $parts));
+
+        if (empty($baseSlug)) {
+            $baseSlug = 'listing';
+        }
+
+        return $baseSlug;
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'id';
+    }
+
+    /**
+     * Resolve the route binding for the {listing} parameter.
+     */
+    public function resolveRouteBinding($value, $field = null): ?self
+    {
+        return $this->find($value);
+    }
+
+    /**
+     * Get the URL for this listing.
+     */
+    public function getUrlAttribute(): string
+    {
+        return route('listings.show', [
+            'slug' => $this->slug ?? 'listing',
+            'listing' => $this->id,
+        ]);
+    }
+
     /**
      * @var array<int, string>
      */
     protected $fillable = [
+        'slug',
         'source_id',
         'municipality_id',
         'external_id',
@@ -49,13 +124,21 @@ class Listing extends Model
         'district',
         'neighbourhood',
         'postal_code',
+        'cross_street',
+        'directions',
+        'zoning',
         'province',
         'latitude',
         'longitude',
         'days_on_market',
         'bedrooms',
         'bedrooms_possible',
+        'bedrooms_above_grade',
+        'bedrooms_below_grade',
         'bathrooms',
+        'rooms_total',
+        'kitchens_total',
+        'washrooms',
         'square_feet',
         'square_feet_text',
         'lot_size_area',
@@ -65,7 +148,30 @@ class Listing extends Model
         'stories',
         'approximate_age',
         'structure_type',
+        'basement',
+        'basement_yn',
+        'foundation_details',
+        'construction_materials',
+        'roof',
+        'architectural_style',
+        'heating_type',
+        'heating_source',
+        'cooling',
+        'fireplace_yn',
+        'fireplace_features',
+        'fireplaces_total',
+        'garage_type',
+        'garage_yn',
+        'garage_parking_spaces',
+        'parking_total',
+        'parking_features',
+        'pool_features',
+        'exterior_features',
+        'interior_features',
+        'water',
+        'sewer',
         'tax_annual_amount',
+        'tax_year',
         'association_fee',
         'list_price',
         'original_list_price',
@@ -77,6 +183,10 @@ class Listing extends Model
         'price_change_direction',
         'is_address_public',
         'parcel_id',
+        'list_office_name',
+        'list_office_phone',
+        'list_aor',
+        'virtual_tour_url',
         'modified_at',
         'payload',
         'ingestion_batch_id',
@@ -112,6 +222,23 @@ class Listing extends Model
             'suppression_expires_at' => 'datetime',
             'tax_annual_amount' => 'decimal:2',
             'transaction_type' => 'string',
+            // New JSON casts
+            'basement' => 'array',
+            'basement_yn' => 'boolean',
+            'foundation_details' => 'array',
+            'construction_materials' => 'array',
+            'roof' => 'array',
+            'architectural_style' => 'array',
+            'cooling' => 'array',
+            'fireplace_yn' => 'boolean',
+            'fireplace_features' => 'array',
+            'garage_yn' => 'boolean',
+            'parking_features' => 'array',
+            'pool_features' => 'array',
+            'exterior_features' => 'array',
+            'interior_features' => 'array',
+            'sewer' => 'array',
+            'washrooms' => 'array',
         ];
     }
 

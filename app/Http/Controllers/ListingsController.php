@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Listing;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 
 class ListingsController extends Controller
 {
@@ -22,8 +23,15 @@ class ListingsController extends Controller
         ]);
     }
 
-    public function show(Listing $listing): View
+    public function show(string $slug, int $listing): View|RedirectResponse
     {
+        $listing = Listing::findOrFail($listing);
+
+        // Redirect to correct slug if wrong slug was used
+        if ($listing->slug && $listing->slug !== $slug) {
+            return redirect()->to($listing->url, 301);
+        }
+
         if ($listing->isSuppressed()) {
             abort(404);
         }

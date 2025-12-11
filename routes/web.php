@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\MapListingsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ListingsController;
@@ -9,9 +10,25 @@ use Livewire\Volt\Volt;
 
 Route::get('/', HomeController::class)->name('home');
 
+Route::get('api/map-listings', MapListingsController::class)->name('api.map-listings');
+
 Volt::route('listings', 'listings.index')->name('listings.index');
 
-Route::get('listings/{listing}', [ListingsController::class, 'show'])->name('listings.show');
+// New SEO-friendly URL format: /listings/{slug}/{id}
+Route::get('listings/{slug}/{listing}', [ListingsController::class, 'show'])
+    ->where('slug', '[a-z0-9-]+')
+    ->where('listing', '[0-9]+')
+    ->name('listings.show');
+
+// Backwards compatibility: redirect old /listings/{id} URLs to new format
+Route::get('listings/{id}', function (string $id) {
+    $listing = \App\Models\Listing::find($id);
+    if (! $listing) {
+        abort(404);
+    }
+
+    return redirect()->route('listings.show', ['slug' => $listing->slug, 'listing' => $listing->id], 301);
+})->where('id', '[0-9]+');
 
 Route::get('dashboard', DashboardController::class)
     ->middleware(['auth', 'verified', 'admin'])
@@ -35,6 +52,9 @@ Route::middleware(['auth'])->group(function () {
 
         Volt::route('admin/settings/analytics', 'admin.settings.analytics')
             ->name('admin.settings.analytics');
+
+        Volt::route('admin/settings/api-keys', 'admin.settings.api-keys')
+            ->name('admin.settings.api-keys');
     });
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');

@@ -23,7 +23,7 @@ test('guests can browse current listings', function (): void {
         ->assertSee($torontoListing->street_address)
         ->assertSee('$625,000')
         ->assertSee('202 Wellington Street')
-        ->assertSee(route('listings.show', $torontoListing), false);
+        ->assertSee($torontoListing->url, false);
 });
 
 test('listings pagination links are rendered', function (): void {
@@ -57,7 +57,7 @@ test('guests can view a listing detail page', function (): void {
         'modified_at' => now(),
     ]);
 
-    $this->get(route('listings.show', $listing))
+    $this->get($listing->url)
         ->assertOk()
         ->assertSee('$675,000')
         ->assertSee('34 LAMPMAN LANE')
@@ -95,12 +95,116 @@ test('suppressed listings are hidden from the public catalog', function (): void
         ->assertSee($expiredSuppression->street_address)
         ->assertDontSee($suppressedListing->street_address);
 
-    $this->get(route('listings.show', $visibleListing))
+    $this->get($visibleListing->url)
         ->assertOk();
 
-    $this->get(route('listings.show', $suppressedListing))
+    $this->get($suppressedListing->url)
         ->assertNotFound();
 
-    $this->get(route('listings.show', $expiredSuppression))
+    $this->get($expiredSuppression->url)
         ->assertOk();
+});
+
+test('listings generate SEO-friendly slugs with address on creation', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => '236',
+        'unit_number' => '208',
+        'street_name' => 'Albion Road',
+        'city' => 'Etobicoke',
+        'display_status' => 'Available',
+    ]);
+
+    // Slug should be address only (no ID), with unit number first (just digits)
+    expect($listing->slug)->toBe('208-236-albion-road-etobicoke');
+    // URL should have slug/{id} format
+    expect($listing->url)->toContain('/208-236-albion-road-etobicoke/'.$listing->id);
+});
+
+test('listing URLs include the address slug', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => '100',
+        'unit_number' => null,
+        'street_name' => 'Main Street',
+        'city' => 'Toronto',
+        'display_status' => 'Available',
+    ]);
+
+    $url = $listing->url;
+
+    expect($url)->toContain($listing->slug);
+    expect($url)->toContain('100-main-street-toronto/'.$listing->id);
+});
+
+test('listing detail page is accessible via slug URL', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => '55',
+        'unit_number' => null,
+        'street_name' => 'Queen Street',
+        'street_address' => '55 Queen Street',
+        'city' => 'Hamilton',
+        'display_status' => 'Available',
+        'list_price' => 500000,
+    ]);
+
+    $this->get('/listings/'.$listing->slug.'/'.$listing->id)
+        ->assertOk()
+        ->assertSee('$500,000');
+});
+
+test('old ID-based URLs redirect to the new slug URL', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => '99',
+        'unit_number' => null,
+        'street_name' => 'King Street',
+        'city' => 'Ottawa',
+        'display_status' => 'Available',
+    ]);
+
+    // Accessing by just the ID should redirect to the full slug URL
+    $this->get('/listings/'.$listing->id)
+        ->assertRedirect($listing->url);
+});
+
+test('listing slugs update when address fields change', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => '10',
+        'unit_number' => null,
+        'street_name' => 'First Avenue',
+        'city' => 'Mississauga',
+        'display_status' => 'Available',
+    ]);
+
+    $originalSlug = $listing->slug;
+    expect($originalSlug)->toBe('10-first-avenue-mississauga');
+
+    $listing->update([
+        'street_name' => 'Second Avenue',
+    ]);
+
+    expect($listing->fresh()->slug)->not->toBe($originalSlug);
+    expect($listing->fresh()->slug)->toBe('10-second-avenue-mississauga');
+});
+
+test('listing slug handles missing address components gracefully', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => null,
+        'unit_number' => null,
+        'street_name' => null,
+        'city' => 'Toronto',
+        'display_status' => 'Available',
+    ]);
+
+    expect($listing->slug)->toBe('toronto');
+});
+
+test('listing slug falls back to "listing" when no address info available', function (): void {
+    $listing = Listing::factory()->create([
+        'street_number' => null,
+        'unit_number' => null,
+        'street_name' => null,
+        'city' => null,
+        'display_status' => 'Available',
+    ]);
+
+    expect($listing->slug)->toBe('listing');
 });

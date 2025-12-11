@@ -624,14 +624,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         @endif
                     </div>
                 @else
-                    <div class="mt-6 flex aspect-video items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/70">
-                        <div class="flex flex-col items-center gap-3 text-center">
-                            <flux:icon name="photo" class="h-10 w-10" />
-                            <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
-                                {{ __('No photos have been attached to this listing yet.') }}
-                            </flux:text>
-                        </div>
-                    </div>
+                    <x-listing.no-photo-placeholder class="mt-6 aspect-video rounded-xl" />
                 @endif
             </div>
         </div>

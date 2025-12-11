@@ -61,6 +61,6 @@ it('runs a full live import and surfaces listings + media (URLs only)', function
 
     // Choose up to 5 listings with media and assert show pages render
     foreach ($withMedia->take(5) as $listing) {
-        $this->get(route('listings.show', $listing))->assertOk();
+        $this->get($listing->url)->assertOk();
     }
 });

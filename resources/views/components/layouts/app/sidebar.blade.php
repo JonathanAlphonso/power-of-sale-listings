@@ -47,6 +47,14 @@
                         >
                             {{ __('Analytics') }}
                         </flux:navlist.item>
+                        <flux:navlist.item
+                            icon="key"
+                            :href="route('admin.settings.api-keys')"
+                            :current="request()->routeIs('admin.settings.api-keys')"
+                            wire:navigate
+                        >
+                            {{ __('API Keys') }}
+                        </flux:navlist.item>
                     </flux:navlist.group>
                 </flux:navlist>
             @endif

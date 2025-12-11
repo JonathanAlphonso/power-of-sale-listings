@@ -1,9 +1,7 @@
 <?php
 
 use App\Models\Listing;
-use App\Models\Municipality;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection as SupportCollection;
 use Livewire\Attributes\Computed;
@@ -23,16 +21,16 @@ new #[Layout('components.layouts.site')] class extends Component {
     #[Url(as: 'q', except: '')]
     public string $search = '';
 
-    // Status filter
-    #[Url(as: 'status', except: '')]
-    public string $status = '';
+    // Status filter (defaults to 'Active' only)
+    #[Url(as: 'status', except: ['Active'])]
+    public array $statuses = ['Active'];
 
     // Property filters
-    #[Url(as: 'class', except: '')]
-    public string $propertyClass = '';
+    #[Url(as: 'class', except: [])]
+    public array $propertyClasses = [];
 
-    #[Url(as: 'type', except: '')]
-    public string $propertyType = '';
+    #[Url(as: 'style', except: [])]
+    public array $propertyStyles = [];
 
     // Price range
     #[Url(as: 'price_min', except: '')]
@@ -41,12 +39,12 @@ new #[Layout('components.layouts.site')] class extends Component {
     #[Url(as: 'price_max', except: '')]
     public string $priceMax = '';
 
-    // Beds & Baths (supports "2" for exact or "2+" for minimum)
-    #[Url(as: 'beds', except: '')]
-    public string $bedrooms = '';
+    // Beds & Baths (supports multiple selections)
+    #[Url(as: 'beds', except: [])]
+    public array $bedrooms = [];
 
-    #[Url(as: 'baths', except: '')]
-    public string $bathrooms = '';
+    #[Url(as: 'baths', except: [])]
+    public array $bathrooms = [];
 
     // Square footage
     #[Url(as: 'sqft_min', except: '')]
@@ -77,15 +75,12 @@ new #[Layout('components.layouts.site')] class extends Component {
     public string $feeMax = '';
 
     // Age filter
-    #[Url(as: 'age', except: '')]
-    public string $approximateAge = '';
+    #[Url(as: 'age', except: [])]
+    public array $approximateAges = [];
 
     // Location
-    #[Url(as: 'city', except: '')]
-    public string $city = '';
-
-    #[Url(as: 'municipality', except: '')]
-    public string $municipalityId = '';
+    #[Url(as: 'city', except: [])]
+    public array $cities = [];
 
     // Listed since
     #[Url(as: 'listed_since', except: '')]
@@ -95,7 +90,19 @@ new #[Layout('components.layouts.site')] class extends Component {
     #[Url(as: 'sort', except: 'newest')]
     public string $sortBy = 'newest';
 
-    public bool $showFilters = false;
+    // View mode (grid or map)
+    #[Url(as: 'view', except: 'grid')]
+    public string $viewMode = 'grid';
+
+    // Initial map position (for "View in Map" links)
+    #[Url(as: 'lat', except: '')]
+    public string $initialLat = '';
+
+    #[Url(as: 'lng', except: '')]
+    public string $initialLng = '';
+
+    #[Url(as: 'zoom', except: '')]
+    public string $initialZoom = '';
 
     public function updatedSearch(): void
     {
@@ -104,18 +111,46 @@ new #[Layout('components.layouts.site')] class extends Component {
 
     public function updated($property): void
     {
-        if ($property !== 'showFilters') {
+        if ($property !== 'viewMode') {
             $this->resetPage();
+
+            // Dispatch event for map refresh
+            if ($this->viewMode === 'map') {
+                $this->dispatch('filters-updated', params: $this->currentFilterParams());
+            }
         }
+    }
+
+    public function currentFilterParams(): array
+    {
+        return array_filter([
+            'q' => $this->search,
+            'status' => $this->statuses,
+            'class' => $this->propertyClasses,
+            'style' => $this->propertyStyles,
+            'price_min' => $this->priceMin,
+            'price_max' => $this->priceMax,
+            'beds' => $this->bedrooms,
+            'baths' => $this->bathrooms,
+            'sqft_min' => $this->sqftMin,
+            'sqft_max' => $this->sqftMax,
+            'lot_min' => $this->lotMin,
+            'lot_max' => $this->lotMax,
+            'tax_max' => $this->taxMax,
+            'fee_max' => $this->feeMax,
+            'age' => $this->approximateAges,
+            'city' => $this->cities,
+            'listed_since' => $this->listedSince,
+        ], fn ($value) => $value !== '' && $value !== []);
     }
 
     public function resetFilters(): void
     {
         $this->reset([
             'search',
-            'status',
-            'propertyClass',
-            'propertyType',
+            'statuses',
+            'propertyClasses',
+            'propertyStyles',
             'priceMin',
             'priceMax',
             'bedrooms',
@@ -128,28 +163,30 @@ new #[Layout('components.layouts.site')] class extends Component {
             'storiesMax',
             'taxMax',
             'feeMax',
-            'approximateAge',
-            'city',
-            'municipalityId',
+            'approximateAges',
+            'cities',
             'listedSince',
             'sortBy',
         ]);
         $this->resetPage();
     }
 
-    private function parseRoomFilter(string $value): ?array
+    private function buildRoomQuery(Builder $query, string $column, array $values): void
     {
-        if ($value === '') {
-            return null;
+        if (empty($values)) {
+            return;
         }
 
-        $isMinimum = str_ends_with($value, '+');
-        $number = $isMinimum ? rtrim($value, '+') : $value;
+        $query->where(function (Builder $q) use ($column, $values): void {
+            foreach ($values as $value) {
+                $isMinimum = str_ends_with($value, '+');
+                $number = $isMinimum ? rtrim($value, '+') : $value;
 
-        return [
-            'value' => is_numeric($number) ? (float) $number : null,
-            'operator' => $isMinimum ? '>=' : '=',
-        ];
+                if (is_numeric($number)) {
+                    $q->orWhere($column, $isMinimum ? '>=' : '=', (int) $number);
+                }
+            }
+        });
     }
 
     #[Computed]
@@ -168,26 +205,16 @@ new #[Layout('components.layouts.site')] class extends Component {
                 });
             })
             // Status
-            ->when($this->status !== '', fn (Builder $q) => $q->where('display_status', $this->status))
-            // Property class & type
-            ->when($this->propertyClass !== '', fn (Builder $q) => $q->where('property_class', $this->propertyClass))
-            ->when($this->propertyType !== '', fn (Builder $q) => $q->where('property_type', $this->propertyType))
+            ->when(! empty($this->statuses), fn (Builder $q) => $q->whereIn('display_status', $this->statuses))
+            // Property class & style
+            ->when(! empty($this->propertyClasses), fn (Builder $q) => $q->whereIn('property_class', $this->propertyClasses))
+            ->when(! empty($this->propertyStyles), fn (Builder $q) => $q->whereIn('property_style', $this->propertyStyles))
             // Price range
             ->when($this->priceMin !== '', fn (Builder $q) => $q->where('list_price', '>=', (float) $this->priceMin))
             ->when($this->priceMax !== '', fn (Builder $q) => $q->where('list_price', '<=', (float) $this->priceMax))
             // Beds & Baths
-            ->when($this->bedrooms !== '', function (Builder $q) {
-                $filter = $this->parseRoomFilter($this->bedrooms);
-                if ($filter && $filter['value'] !== null) {
-                    $q->where('bedrooms', $filter['operator'], (int) $filter['value']);
-                }
-            })
-            ->when($this->bathrooms !== '', function (Builder $q) {
-                $filter = $this->parseRoomFilter($this->bathrooms);
-                if ($filter && $filter['value'] !== null) {
-                    $q->where('bathrooms', $filter['operator'], $filter['value']);
-                }
-            })
+            ->when(! empty($this->bedrooms), fn (Builder $q) => $this->buildRoomQuery($q, 'bedrooms', $this->bedrooms))
+            ->when(! empty($this->bathrooms), fn (Builder $q) => $this->buildRoomQuery($q, 'bathrooms', $this->bathrooms))
             // Square footage
             ->when($this->sqftMin !== '', fn (Builder $q) => $q->where('square_feet', '>=', (int) $this->sqftMin))
             ->when($this->sqftMax !== '', fn (Builder $q) => $q->where('square_feet', '<=', (int) $this->sqftMax))
@@ -201,10 +228,9 @@ new #[Layout('components.layouts.site')] class extends Component {
             ->when($this->taxMax !== '', fn (Builder $q) => $q->where('tax_annual_amount', '<=', (float) $this->taxMax))
             ->when($this->feeMax !== '', fn (Builder $q) => $q->where('association_fee', '<=', (float) $this->feeMax))
             // Age
-            ->when($this->approximateAge !== '', fn (Builder $q) => $q->where('approximate_age', $this->approximateAge))
+            ->when(! empty($this->approximateAges), fn (Builder $q) => $q->whereIn('approximate_age', $this->approximateAges))
             // Location
-            ->when($this->city !== '', fn (Builder $q) => $q->where('city', $this->city))
-            ->when($this->municipalityId !== '', fn (Builder $q) => $q->where('municipality_id', (int) $this->municipalityId))
+            ->when(! empty($this->cities), fn (Builder $q) => $q->whereIn('city', $this->cities))
             // Listed since
             ->when($this->listedSince !== '', fn (Builder $q) => $q->where('listed_at', '>=', $this->listedSince))
             // Sorting
@@ -222,20 +248,20 @@ new #[Layout('components.layouts.site')] class extends Component {
     {
         $count = 0;
         if ($this->search !== '') $count++;
-        if ($this->status !== '') $count++;
-        if ($this->propertyClass !== '') $count++;
-        if ($this->propertyType !== '') $count++;
+        // Don't count status if it's just the default ['Active']
+        if (! empty($this->statuses) && $this->statuses !== ['Active']) $count++;
+        if (! empty($this->propertyClasses)) $count++;
+        if (! empty($this->propertyStyles)) $count++;
         if ($this->priceMin !== '' || $this->priceMax !== '') $count++;
-        if ($this->bedrooms !== '') $count++;
-        if ($this->bathrooms !== '') $count++;
+        if (! empty($this->bedrooms)) $count++;
+        if (! empty($this->bathrooms)) $count++;
         if ($this->sqftMin !== '' || $this->sqftMax !== '') $count++;
         if ($this->lotMin !== '' || $this->lotMax !== '') $count++;
         if ($this->storiesMin !== '' || $this->storiesMax !== '') $count++;
         if ($this->taxMax !== '') $count++;
         if ($this->feeMax !== '') $count++;
-        if ($this->approximateAge !== '') $count++;
-        if ($this->city !== '') $count++;
-        if ($this->municipalityId !== '') $count++;
+        if (! empty($this->approximateAges)) $count++;
+        if (! empty($this->cities)) $count++;
         if ($this->listedSince !== '') $count++;
         return $count;
     }
@@ -263,14 +289,15 @@ new #[Layout('components.layouts.site')] class extends Component {
     }
 
     #[Computed]
-    public function availablePropertyTypes(): SupportCollection
+    public function availablePropertyStyles(): SupportCollection
     {
         return Listing::query()
             ->visible()
             ->distinct()
-            ->whereNotNull('property_type')
-            ->orderBy('property_type')
-            ->pluck('property_type');
+            ->whereNotNull('property_style')
+            ->orderBy('property_style')
+            ->pluck('property_style')
+            ->map(fn ($style) => trim($style));
     }
 
     #[Computed]
@@ -295,18 +322,11 @@ new #[Layout('components.layouts.site')] class extends Component {
             ->pluck('approximate_age');
     }
 
-    #[Computed]
-    public function municipalities(): Collection
-    {
-        return Municipality::query()
-            ->orderBy('name')
-            ->get(['id', 'name']);
-    }
 }; ?>
 
 <x-slot:title>{{ __('Current Listings') }}</x-slot:title>
 
-<section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="{ showFilters: false }">
     {{-- Header --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
@@ -322,10 +342,34 @@ new #[Layout('components.layouts.site')] class extends Component {
             <flux:badge color="blue">
                 {{ trans_choice(':count listing|:count listings', $this->listings->total(), ['count' => number_format($this->listings->total())]) }}
             </flux:badge>
+
+            {{-- View Toggle --}}
+            <div class="flex items-center rounded-lg border border-slate-200 p-1 dark:border-zinc-700">
+                <button
+                    wire:click="$set('viewMode', 'grid')"
+                    type="button"
+                    class="rounded-md p-2 transition {{ $viewMode === 'grid' ? 'bg-slate-100 text-slate-900 dark:bg-zinc-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200' }}"
+                    title="{{ __('Grid view') }}"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                </button>
+                <button
+                    wire:click="$set('viewMode', 'map')"
+                    type="button"
+                    class="rounded-md p-2 transition {{ $viewMode === 'map' ? 'bg-slate-100 text-slate-900 dark:bg-zinc-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200' }}"
+                    title="{{ __('Map view') }}"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
 
-    {{-- Search & Filter Toggle --}}
+    {{-- Search & Sort Row --}}
     <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
         <div class="flex-1">
             <flux:input
@@ -336,92 +380,207 @@ new #[Layout('components.layouts.site')] class extends Component {
             />
         </div>
 
-        <div class="flex items-center gap-2">
-            <flux:select wire:model.live="sortBy" class="w-44">
-                <flux:select.option value="newest">{{ __('Newest first') }}</flux:select.option>
-                <flux:select.option value="oldest">{{ __('Oldest first') }}</flux:select.option>
-                <flux:select.option value="price_asc">{{ __('Price: Low to High') }}</flux:select.option>
-                <flux:select.option value="price_desc">{{ __('Price: High to Low') }}</flux:select.option>
-                <flux:select.option value="beds_desc">{{ __('Most Bedrooms') }}</flux:select.option>
-                <flux:select.option value="sqft_desc">{{ __('Largest') }}</flux:select.option>
-            </flux:select>
-
-            <flux:button
-                wire:click="$toggle('showFilters')"
-                :variant="$showFilters ? 'primary' : 'outline'"
-                icon="adjustments-horizontal"
-            >
-                {{ __('Filters') }}
-                @if ($this->activeFilterCount > 0)
-                    <flux:badge color="amber" size="sm" class="ml-1">{{ $this->activeFilterCount }}</flux:badge>
-                @endif
-            </flux:button>
-        </div>
+        <flux:select wire:model.live="sortBy" class="w-44">
+            <flux:select.option value="newest">{{ __('Newest first') }}</flux:select.option>
+            <flux:select.option value="oldest">{{ __('Oldest first') }}</flux:select.option>
+            <flux:select.option value="price_asc">{{ __('Price: Low to High') }}</flux:select.option>
+            <flux:select.option value="price_desc">{{ __('Price: High to Low') }}</flux:select.option>
+            <flux:select.option value="beds_desc">{{ __('Most Bedrooms') }}</flux:select.option>
+            <flux:select.option value="sqft_desc">{{ __('Largest') }}</flux:select.option>
+        </flux:select>
     </div>
 
-    {{-- Filter Panel --}}
-    @if ($showFilters)
-        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {{-- Status --}}
-                <flux:select wire:model.live="status" :label="__('Status')">
-                    <flux:select.option value="">{{ __('All statuses') }}</flux:select.option>
-                    @foreach ($this->availableStatuses as $statusOption)
-                        <flux:select.option value="{{ $statusOption }}">{{ $statusOption }}</flux:select.option>
-                    @endforeach
-                </flux:select>
+    {{-- Primary Filter Dropdowns --}}
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+        {{-- Status --}}
+        <x-filter-dropdown
+            :label="__('Status')"
+            :options="$this->availableStatuses->toArray()"
+            :selected="$statuses"
+            wire-model="statuses"
+            :all-label="__('All statuses')"
+        />
 
-                {{-- Property Class --}}
-                <flux:select wire:model.live="propertyClass" :label="__('Property Class')">
-                    <flux:select.option value="">{{ __('All classes') }}</flux:select.option>
-                    @foreach ($this->availablePropertyClasses as $classOption)
-                        <flux:select.option value="{{ $classOption }}">{{ ucwords(strtolower($classOption)) }}</flux:select.option>
-                    @endforeach
-                </flux:select>
+        {{-- Property Style --}}
+        <x-filter-dropdown
+            :label="__('Property Style')"
+            :options="$this->availablePropertyStyles->toArray()"
+            :selected="$propertyStyles"
+            wire-model="propertyStyles"
+            :all-label="__('All property types')"
+        />
 
-                {{-- Property Type --}}
-                <flux:select wire:model.live="propertyType" :label="__('Property Type')">
-                    <flux:select.option value="">{{ __('All types') }}</flux:select.option>
-                    @foreach ($this->availablePropertyTypes as $typeOption)
-                        <flux:select.option value="{{ $typeOption }}">{{ $typeOption }}</flux:select.option>
-                    @endforeach
-                </flux:select>
+        {{-- City --}}
+        <x-filter-search-dropdown
+            :label="__('City')"
+            :options="$this->availableCities->toArray()"
+            :selected="$cities"
+            wire-model="cities"
+            :placeholder="__('Search cities...')"
+            :all-label="__('All cities')"
+        />
 
-                {{-- City --}}
-                <flux:select wire:model.live="city" :label="__('City')">
-                    <flux:select.option value="">{{ __('All cities') }}</flux:select.option>
-                    @foreach ($this->availableCities as $cityOption)
-                        <flux:select.option value="{{ $cityOption }}">{{ $cityOption }}</flux:select.option>
-                    @endforeach
-                </flux:select>
+        {{-- Price Range Dropdown --}}
+        <flux:dropdown position="bottom" align="start">
+            <flux:button
+                variant="{{ ($priceMin !== '' || $priceMax !== '') ? 'primary' : 'outline' }}"
+                icon:trailing="chevron-down"
+            >
+                @if ($priceMin !== '' && $priceMax !== '')
+                    ${{ number_format((int) $priceMin) }} - ${{ number_format((int) $priceMax) }}
+                @elseif ($priceMin !== '')
+                    ${{ number_format((int) $priceMin) }}+
+                @elseif ($priceMax !== '')
+                    {{ __('Up to') }} ${{ number_format((int) $priceMax) }}
+                @else
+                    {{ __('Price') }}
+                @endif
+            </flux:button>
 
-                {{-- Price Range --}}
-                <div class="space-y-1">
-                    <flux:label>{{ __('Price Range') }}</flux:label>
-                    <div class="flex items-center gap-2">
-                        <flux:input wire:model.live.debounce.500ms="priceMin" type="number" placeholder="Min" />
-                        <span class="text-slate-400">-</span>
-                        <flux:input wire:model.live.debounce.500ms="priceMax" type="number" placeholder="Max" />
-                    </div>
+            <flux:menu class="w-64 p-3">
+                <div class="space-y-3">
+                    <flux:input
+                        wire:model.live.debounce.500ms="priceMin"
+                        type="number"
+                        :label="__('Min Price')"
+                        placeholder="0"
+                    />
+                    <flux:input
+                        wire:model.live.debounce.500ms="priceMax"
+                        type="number"
+                        :label="__('Max Price')"
+                        placeholder="{{ __('No max') }}"
+                    />
                 </div>
+            </flux:menu>
+        </flux:dropdown>
 
-                {{-- Bedrooms --}}
-                <flux:select wire:model.live="bedrooms" :label="__('Bedrooms')">
-                    <flux:select.option value="">{{ __('Any') }}</flux:select.option>
-                    @foreach ([1, 2, 3, 4, 5] as $beds)
-                        <flux:select.option value="{{ $beds }}">{{ $beds }}</flux:select.option>
-                        <flux:select.option value="{{ $beds }}+">{{ $beds }}+</flux:select.option>
-                    @endforeach
-                </flux:select>
+        {{-- Bedrooms Dropdown --}}
+        <flux:dropdown position="bottom" align="start">
+            <flux:button
+                variant="{{ !empty($bedrooms) ? 'primary' : 'outline' }}"
+                icon:trailing="chevron-down"
+            >
+                @if (!empty($bedrooms))
+                    {{ count($bedrooms) === 1 ? $bedrooms[0] . ' ' . __('bed') : count($bedrooms) . ' ' . __('selected') }}
+                @else
+                    {{ __('Beds') }}
+                @endif
+            </flux:button>
 
-                {{-- Bathrooms --}}
-                <flux:select wire:model.live="bathrooms" :label="__('Bathrooms')">
-                    <flux:select.option value="">{{ __('Any') }}</flux:select.option>
-                    @foreach ([1, 2, 3, 4] as $baths)
-                        <flux:select.option value="{{ $baths }}">{{ $baths }}</flux:select.option>
-                        <flux:select.option value="{{ $baths }}+">{{ $baths }}+</flux:select.option>
+            <flux:menu class="w-48 p-2">
+                <div class="space-y-1">
+                    @foreach (['1', '2', '3', '4', '5', '5+'] as $beds)
+                        <label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-white dark:hover:bg-zinc-600 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                value="{{ $beds }}"
+                                wire:model.live="bedrooms"
+                                class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+                            {{ $beds }} {{ __('bedroom') }}{{ $beds !== '1' && $beds !== '5+' ? 's' : '' }}
+                        </label>
                     @endforeach
-                </flux:select>
+                </div>
+            </flux:menu>
+        </flux:dropdown>
+
+        {{-- Bathrooms Dropdown --}}
+        <flux:dropdown position="bottom" align="start">
+            <flux:button
+                variant="{{ !empty($bathrooms) ? 'primary' : 'outline' }}"
+                icon:trailing="chevron-down"
+            >
+                @if (!empty($bathrooms))
+                    {{ count($bathrooms) === 1 ? $bathrooms[0] . ' ' . __('bath') : count($bathrooms) . ' ' . __('selected') }}
+                @else
+                    {{ __('Baths') }}
+                @endif
+            </flux:button>
+
+            <flux:menu class="w-48 p-2">
+                <div class="space-y-1">
+                    @foreach (['1', '2', '3', '4', '4+'] as $baths)
+                        <label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 dark:text-white dark:hover:bg-zinc-600 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                value="{{ $baths }}"
+                                wire:model.live="bathrooms"
+                                class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+                            {{ $baths }} {{ __('bathroom') }}{{ $baths !== '1' && $baths !== '4+' ? 's' : '' }}
+                        </label>
+                    @endforeach
+                </div>
+            </flux:menu>
+        </flux:dropdown>
+
+        {{-- More Filters Toggle --}}
+        <button
+            type="button"
+            x-on:click="showFilters = !showFilters"
+            :class="showFilters
+                ? 'bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-800 dark:hover:bg-zinc-200'
+                : 'bg-white text-zinc-800 border border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700'"
+            class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition"
+        >
+            <flux:icon name="adjustments-horizontal" class="size-4" />
+            {{ __('More') }}
+            @if ($this->activeFilterCount > 0)
+                <flux:badge color="amber" size="sm" class="ml-1">{{ $this->activeFilterCount }}</flux:badge>
+            @endif
+        </button>
+
+        {{-- Clear All (shown when filters are active) --}}
+        @if ($this->activeFilterCount > 0)
+            <flux:button wire:click="resetFilters" variant="ghost" size="sm" icon="x-mark">
+                {{ __('Clear all') }}
+            </flux:button>
+        @endif
+    </div>
+
+    {{-- Extended Filter Panel --}}
+    <div
+        x-show="showFilters"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 -translate-y-2"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 -translate-y-2"
+        class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60"
+    >
+            <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {{-- Property Class - only show if there are options --}}
+                @if ($this->availablePropertyClasses->isNotEmpty())
+                    <div class="space-y-2">
+                        <flux:label>{{ __('Property Class') }}</flux:label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($this->availablePropertyClasses as $classOption)
+                                <label class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-zinc-300">
+                                    <input type="checkbox" wire:model.live="propertyClasses" value="{{ $classOption }}" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800" />
+                                    {{ ucwords(strtolower($classOption)) }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Property Age - only show if there are options --}}
+                @if ($this->availableAges->isNotEmpty())
+                    <div class="space-y-2">
+                        <flux:label>{{ __('Property Age') }}</flux:label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($this->availableAges as $ageOption)
+                                <label class="inline-flex items-center gap-1.5 text-sm text-slate-700 dark:text-zinc-300">
+                                    <input type="checkbox" wire:model.live="approximateAges" value="{{ $ageOption }}" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800" />
+                                    {{ $ageOption }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Square Footage --}}
                 <div class="space-y-1">
@@ -453,14 +612,6 @@ new #[Layout('components.layouts.site')] class extends Component {
                     </div>
                 </div>
 
-                {{-- Property Age --}}
-                <flux:select wire:model.live="approximateAge" :label="__('Property Age')">
-                    <flux:select.option value="">{{ __('Any age') }}</flux:select.option>
-                    @foreach ($this->availableAges as $ageOption)
-                        <flux:select.option value="{{ $ageOption }}">{{ $ageOption }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-
                 {{-- Max Property Tax --}}
                 <flux:input
                     wire:model.live.debounce.500ms="taxMax"
@@ -483,133 +634,131 @@ new #[Layout('components.layouts.site')] class extends Component {
                     type="date"
                     :label="__('Listed Since')"
                 />
-
-                {{-- Municipality --}}
-                <flux:select wire:model.live="municipalityId" :label="__('Municipality')">
-                    <flux:select.option value="">{{ __('All municipalities') }}</flux:select.option>
-                    @foreach ($this->municipalities as $municipality)
-                        <flux:select.option value="{{ $municipality->id }}">{{ $municipality->name }}</flux:select.option>
-                    @endforeach
-                </flux:select>
             </div>
+    </div>
 
-            {{-- Reset Filters --}}
-            <div class="mt-4 flex justify-end">
-                <flux:button wire:click="resetFilters" variant="subtle" icon="arrow-path" size="sm">
-                    {{ __('Reset all filters') }}
-                </flux:button>
+    <div wire:key="view-{{ $viewMode }}">
+        @if ($viewMode === 'map')
+            {{-- Map View --}}
+            <div class="mt-8" wire:ignore.self>
+                <x-maps.listing-map
+                    :api-endpoint="route('api.map-listings', $this->currentFilterParams())"
+                    height="calc(100vh - 280px)"
+                    class="min-h-[500px]"
+                    :initial-lat="$initialLat !== '' ? $initialLat : null"
+                    :initial-lng="$initialLng !== '' ? $initialLng : null"
+                    :initial-zoom="$initialZoom !== '' ? $initialZoom : null"
+                />
             </div>
-        </div>
-    @endif
+        @else
+        {{-- Listings Grid --}}
+        <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50">
+            @forelse ($this->listings as $listing)
+                @php
+                    $primaryMedia = $listing->media->firstWhere('is_primary', true) ?? $listing->media->first();
+                    $address = $listing->street_address ?? __('Address unavailable');
+                    $location = collect([$listing->city, $listing->province, $listing->postal_code])->filter()->implode(', ');
+                @endphp
 
-    {{-- Listings Grid --}}
-    <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" wire:loading.class="opacity-50">
-        @forelse ($this->listings as $listing)
-            @php
-                $primaryMedia = $listing->media->firstWhere('is_primary', true) ?? $listing->media->first();
-                $address = $listing->street_address ?? __('Address unavailable');
-                $location = collect([$listing->city, $listing->province, $listing->postal_code])->filter()->implode(', ');
-            @endphp
+                <a
+                    href="{{ $listing->url }}"
+                    wire:key="listing-{{ $listing->id }}"
+                    class="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/70"
+                >
+                    @if ($primaryMedia !== null)
+                        <img
+                            src="{{ $primaryMedia->public_url }}"
+                            alt="{{ $primaryMedia->label ?? $address }}"
+                            class="aspect-video w-full object-cover"
+                            loading="lazy"
+                        />
+                    @else
+                        <x-listing.no-photo-placeholder size="small" class="aspect-video" />
+                    @endif
 
-            <a
-                href="{{ route('listings.show', $listing) }}"
-                wire:key="listing-{{ $listing->id }}"
-                class="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/70"
-            >
-                @if ($primaryMedia !== null)
-                    <img
-                        src="{{ $primaryMedia->public_url }}"
-                        alt="{{ $primaryMedia->label ?? $address }}"
-                        class="aspect-video w-full object-cover"
-                        loading="lazy"
-                    />
-                @else
-                    <div class="flex aspect-video items-center justify-center bg-slate-100 text-4xl text-slate-300 dark:bg-zinc-800 dark:text-zinc-600">
-                        <flux:icon name="photo" />
-                    </div>
-                @endif
+                    <div class="flex flex-1 flex-col gap-4 p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 space-y-1">
+                                <h2 class="truncate text-base font-semibold text-slate-900 dark:text-white">
+                                    {{ $address }}
+                                </h2>
 
-                <div class="flex flex-1 flex-col gap-4 p-5">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0 space-y-1">
-                            <h2 class="truncate text-base font-semibold text-slate-900 dark:text-white">
-                                {{ $address }}
-                            </h2>
+                                @if ($location !== '')
+                                    <p class="truncate text-sm text-slate-500 dark:text-zinc-400">
+                                        {{ $location }}
+                                    </p>
+                                @endif
+                            </div>
 
-                            @if ($location !== '')
-                                <p class="truncate text-sm text-slate-500 dark:text-zinc-400">
-                                    {{ $location }}
-                                </p>
+                            <flux:badge size="sm" color="{{ \App\Support\ListingPresentation::statusBadge($listing->display_status) }}">
+                                {{ $listing->display_status ?? __('Unknown') }}
+                            </flux:badge>
+                        </div>
+
+                        {{-- Price --}}
+                        <div class="text-xl font-bold text-slate-900 dark:text-white">
+                            {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
+                        </div>
+
+                        {{-- Quick Stats --}}
+                        <div class="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-zinc-400">
+                            @if ($listing->bedrooms)
+                                <span class="flex items-center gap-1">
+                                    <flux:icon name="home" class="size-4" />
+                                    {{ $listing->bedrooms }} {{ __('bed') }}
+                                </span>
+                            @endif
+                            @if ($listing->bathrooms)
+                                <span class="flex items-center gap-1">
+                                    {{ \App\Support\ListingPresentation::numeric($listing->bathrooms, 1) }} {{ __('bath') }}
+                                </span>
+                            @endif
+                            @if ($listing->square_feet)
+                                <span>{{ number_format($listing->square_feet) }} {{ __('sqft') }}</span>
                             @endif
                         </div>
 
-                        <flux:badge size="sm" color="{{ \App\Support\ListingPresentation::statusBadge($listing->display_status) }}">
-                            {{ $listing->display_status ?? __('Unknown') }}
-                        </flux:badge>
-                    </div>
-
-                    {{-- Price --}}
-                    <div class="text-xl font-bold text-slate-900 dark:text-white">
-                        {{ \App\Support\ListingPresentation::currency($listing->list_price) }}
-                    </div>
-
-                    {{-- Quick Stats --}}
-                    <div class="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-zinc-400">
-                        @if ($listing->bedrooms)
-                            <span class="flex items-center gap-1">
-                                <flux:icon name="home" class="size-4" />
-                                {{ $listing->bedrooms }} {{ __('bed') }}
-                            </span>
+                        {{-- Property Style --}}
+                        @if ($listing->property_style)
+                            <div class="text-xs text-slate-500 dark:text-zinc-500">
+                                {{ $listing->property_style }}
+                            </div>
                         @endif
-                        @if ($listing->bathrooms)
-                            <span class="flex items-center gap-1">
-                                {{ \App\Support\ListingPresentation::numeric($listing->bathrooms, 1) }} {{ __('bath') }}
-                            </span>
-                        @endif
-                        @if ($listing->square_feet)
-                            <span>{{ number_format($listing->square_feet) }} {{ __('sqft') }}</span>
-                        @endif
-                    </div>
 
-                    {{-- Property Type --}}
-                    @if ($listing->property_type)
-                        <div class="text-xs text-slate-500 dark:text-zinc-500">
-                            {{ $listing->property_type }}
+                        {{-- Footer --}}
+                        <div class="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-zinc-800 dark:text-zinc-500">
+                            <span>{{ $listing->mls_number }}</span>
+                            <span>{{ optional($listing->modified_at)?->diffForHumans() ?? __('Unknown') }}</span>
                         </div>
-                    @endif
-
-                    {{-- Footer --}}
-                    <div class="mt-auto flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-zinc-800 dark:text-zinc-500">
-                        <span>{{ $listing->mls_number }}</span>
-                        <span>{{ optional($listing->modified_at)?->diffForHumans() ?? __('Unknown') }}</span>
                     </div>
-                </div>
-            </a>
-        @empty
-            <div class="sm:col-span-2 lg:col-span-3">
-                <flux:callout class="rounded-2xl">
-                    <flux:callout.heading>{{ __('No listings found') }}</flux:callout.heading>
-                    <flux:callout.text>
+                </a>
+            @empty
+                <div class="sm:col-span-2 lg:col-span-3">
+                    <flux:callout class="rounded-2xl">
+                        <flux:callout.heading>{{ __('No listings found') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            @if ($this->activeFilterCount > 0)
+                                {{ __('Try adjusting your filters or search criteria to find more properties.') }}
+                            @else
+                                {{ __('Check back soon—new foreclosure opportunities will appear here as they are ingested from MLS feeds.') }}
+                            @endif
+                        </flux:callout.text>
                         @if ($this->activeFilterCount > 0)
-                            {{ __('Try adjusting your filters or search criteria to find more properties.') }}
-                        @else
-                            {{ __('Check back soon—new foreclosure opportunities will appear here as they are ingested from MLS feeds.') }}
+                            <flux:button wire:click="resetFilters" variant="primary" size="sm" class="mt-3">
+                                {{ __('Clear all filters') }}
+                            </flux:button>
                         @endif
-                    </flux:callout.text>
-                    @if ($this->activeFilterCount > 0)
-                        <flux:button wire:click="resetFilters" variant="primary" size="sm" class="mt-3">
-                            {{ __('Clear all filters') }}
-                        </flux:button>
-                    @endif
-                </flux:callout>
-            </div>
-        @endforelse
-    </div>
-
-    {{-- Pagination --}}
-    @if ($this->listings->hasPages())
-        <div class="mt-10">
-            {{ $this->listings->onEachSide(1)->links() }}
+                    </flux:callout>
+                </div>
+            @endforelse
         </div>
-    @endif
+
+        {{-- Pagination --}}
+        @if ($this->listings->hasPages())
+            <div class="mt-10">
+                {{ $this->listings->onEachSide(1)->links() }}
+            </div>
+        @endif
+        @endif
+    </div>
 </section>

@@ -58,4 +58,10 @@ return [
         'token' => env('VOW_TOKEN'),
     ],
 
+    // MapTiler - used for listing maps
+    // Register at maptiler.com for a free API key (100k map loads/month free)
+    'maptiler' => [
+        'key' => env('MAPTILER_API_KEY'),
+    ],
+
 ];

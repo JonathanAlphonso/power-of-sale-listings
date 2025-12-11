@@ -117,7 +117,7 @@ test('import both imports five listings with images and pages are reachable', fu
 
     // 5) Each listing show page is reachable, then clean up
     foreach ($listings as $listing) {
-        $this->get(route('listings.show', $listing))->assertOk();
+        $this->get($listing->url)->assertOk();
     }
 
     // Cleanup: remove the inserted records (cascade deletes media)

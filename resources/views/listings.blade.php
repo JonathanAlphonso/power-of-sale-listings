@@ -25,7 +25,7 @@
                 @endphp
 
                 <a
-                    href="{{ route('listings.show', $listing) }}"
+                    href="{{ $listing->url }}"
                     class="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900/70"
                 >
                     @if ($primaryMedia !== null)

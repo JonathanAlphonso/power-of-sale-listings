@@ -6,14 +6,16 @@ test('guests can browse current listings', function (): void {
     $torontoListing = Listing::factory()->create([
         'street_address' => '101 Harbour Street',
         'city' => 'Toronto',
-        'display_status' => 'Available',
+        'display_status' => 'Active',
+        'property_style' => 'Detached',
         'list_price' => 625000,
         'modified_at' => now(),
     ]);
 
     Listing::factory()->create([
         'street_address' => '202 Wellington Street',
-        'display_status' => 'Sold',
+        'display_status' => 'Active',
+        'property_style' => 'Detached',
         'modified_at' => now()->subDay(),
     ]);
 
@@ -28,7 +30,8 @@ test('guests can browse current listings', function (): void {
 
 test('listings pagination links are rendered', function (): void {
     Listing::factory()->count(15)->create([
-        'display_status' => 'Available',
+        'display_status' => 'Active',
+        'property_style' => 'Detached',
         'modified_at' => now(),
     ]);
 
@@ -69,7 +72,8 @@ test('suppressed listings are hidden from the public catalog', function (): void
     $visibleListing = Listing::factory()->create([
         'street_address' => '101 Harbour Street',
         'city' => 'Toronto',
-        'display_status' => 'Available',
+        'display_status' => 'Active',
+        'property_style' => 'Detached',
         'modified_at' => now(),
     ]);
 
@@ -77,7 +81,8 @@ test('suppressed listings are hidden from the public catalog', function (): void
         ->suppressed()
         ->create([
             'street_address' => 'Hidden Lane',
-            'display_status' => 'Available',
+            'display_status' => 'Active',
+            'property_style' => 'Detached',
             'modified_at' => now()->subDay(),
         ]);
 
@@ -85,7 +90,8 @@ test('suppressed listings are hidden from the public catalog', function (): void
         ->suppressed(now()->subDay())
         ->create([
             'street_address' => 'Reinstated Court',
-            'display_status' => 'Available',
+            'display_status' => 'Active',
+            'property_style' => 'Detached',
             'modified_at' => now()->subHours(6),
         ]);
 

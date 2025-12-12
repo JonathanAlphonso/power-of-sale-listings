@@ -26,11 +26,41 @@ new #[Layout('components.layouts.site')] class extends Component {
     public array $statuses = ['Active'];
 
     // Property filters
-    #[Url(as: 'class', except: [])]
-    public array $propertyClasses = [];
+    // Property styles grouped by category
+    private const RESIDENTIAL_STYLES = [
+        'Att/Row/Townhouse',
+        'Common Element Condo',
+        'Condo Apartment',
+        'Condo Townhouse',
+        'Detached',
+        'Duplex',
+        'Farm',
+        'Link',
+        'Multiplex',
+        'Other',
+        'Rural Residential',
+        'Semi-Detached',
+        'Triplex',
+        'Vacant Land',
+        'Vacant Land Condo',
+    ];
 
+    private const COMMERCIAL_STYLES = [
+        'Commercial Retail',
+        'Industrial',
+        'Investment',
+        'Land',
+        'Office',
+        'Sale Of Business',
+        'Store W Apt/Office',
+    ];
+
+    // Default to residential styles only (empty = residential, selected = custom filter)
     #[Url(as: 'style', except: [])]
     public array $propertyStyles = [];
+
+    #[Url(as: 'class', except: [])]
+    public array $propertyClasses = [];
 
     // Price range
     #[Url(as: 'price_min', except: '')]
@@ -123,11 +153,14 @@ new #[Layout('components.layouts.site')] class extends Component {
 
     public function currentFilterParams(): array
     {
+        // If no styles selected, default to residential only
+        $styles = ! empty($this->propertyStyles) ? $this->propertyStyles : self::RESIDENTIAL_STYLES;
+
         return array_filter([
             'q' => $this->search,
             'status' => $this->statuses,
             'class' => $this->propertyClasses,
-            'style' => $this->propertyStyles,
+            'style' => $styles,
             'price_min' => $this->priceMin,
             'price_max' => $this->priceMax,
             'beds' => $this->bedrooms,
@@ -206,9 +239,13 @@ new #[Layout('components.layouts.site')] class extends Component {
             })
             // Status
             ->when(! empty($this->statuses), fn (Builder $q) => $q->whereIn('display_status', $this->statuses))
-            // Property class & style
+            // Property style (default to residential if nothing selected)
+            ->where(function (Builder $q): void {
+                $styles = ! empty($this->propertyStyles) ? $this->propertyStyles : self::RESIDENTIAL_STYLES;
+                $q->whereIn('property_style', $styles);
+            })
+            // Property class
             ->when(! empty($this->propertyClasses), fn (Builder $q) => $q->whereIn('property_class', $this->propertyClasses))
-            ->when(! empty($this->propertyStyles), fn (Builder $q) => $q->whereIn('property_style', $this->propertyStyles))
             // Price range
             ->when($this->priceMin !== '', fn (Builder $q) => $q->where('list_price', '>=', (float) $this->priceMin))
             ->when($this->priceMax !== '', fn (Builder $q) => $q->where('list_price', '<=', (float) $this->priceMax))
@@ -250,8 +287,9 @@ new #[Layout('components.layouts.site')] class extends Component {
         if ($this->search !== '') $count++;
         // Don't count status if it's just the default ['Active']
         if (! empty($this->statuses) && $this->statuses !== ['Active']) $count++;
-        if (! empty($this->propertyClasses)) $count++;
+        // Count property styles only if changed from default (residential only / empty)
         if (! empty($this->propertyStyles)) $count++;
+        if (! empty($this->propertyClasses)) $count++;
         if ($this->priceMin !== '' || $this->priceMax !== '') $count++;
         if (! empty($this->bedrooms)) $count++;
         if (! empty($this->bathrooms)) $count++;
@@ -320,6 +358,48 @@ new #[Layout('components.layouts.site')] class extends Component {
             ->whereNotNull('approximate_age')
             ->orderBy('approximate_age')
             ->pluck('approximate_age');
+    }
+
+    public function toggleResidentialStyles(): void
+    {
+        $allSelected = count(array_intersect(self::RESIDENTIAL_STYLES, $this->propertyStyles)) === count(self::RESIDENTIAL_STYLES);
+
+        if ($allSelected) {
+            // Remove all residential styles
+            $this->propertyStyles = array_values(array_diff($this->propertyStyles, self::RESIDENTIAL_STYLES));
+        } else {
+            // Add all residential styles
+            $this->propertyStyles = array_values(array_unique([...$this->propertyStyles, ...self::RESIDENTIAL_STYLES]));
+        }
+        $this->resetPage();
+    }
+
+    public function toggleCommercialStyles(): void
+    {
+        $allSelected = count(array_intersect(self::COMMERCIAL_STYLES, $this->propertyStyles)) === count(self::COMMERCIAL_STYLES);
+
+        if ($allSelected) {
+            // Remove all commercial styles
+            $this->propertyStyles = array_values(array_diff($this->propertyStyles, self::COMMERCIAL_STYLES));
+        } else {
+            // Add all commercial styles
+            $this->propertyStyles = array_values(array_unique([...$this->propertyStyles, ...self::COMMERCIAL_STYLES]));
+        }
+        $this->resetPage();
+    }
+
+    public function selectAllStyles(): void
+    {
+        // Select all styles (residential + commercial)
+        $this->propertyStyles = [...self::RESIDENTIAL_STYLES, ...self::COMMERCIAL_STYLES];
+        $this->resetPage();
+    }
+
+    public function clearStyleFilters(): void
+    {
+        // Clear selection (defaults back to residential only)
+        $this->propertyStyles = [];
+        $this->resetPage();
     }
 
 }; ?>
@@ -401,14 +481,115 @@ new #[Layout('components.layouts.site')] class extends Component {
             :all-label="__('All statuses')"
         />
 
-        {{-- Property Style --}}
-        <x-filter-dropdown
-            :label="__('Property Style')"
-            :options="$this->availablePropertyStyles->toArray()"
-            :selected="$propertyStyles"
-            wire-model="propertyStyles"
-            :all-label="__('All property types')"
-        />
+        {{-- Property Type (Residential/Commercial styles) --}}
+        @php
+            $residentialStyles = [
+                'Att/Row/Townhouse', 'Common Element Condo', 'Condo Apartment', 'Condo Townhouse',
+                'Detached', 'Duplex', 'Farm', 'Link', 'Multiplex', 'Other', 'Rural Residential',
+                'Semi-Detached', 'Triplex', 'Vacant Land', 'Vacant Land Condo',
+            ];
+            $commercialStyles = [
+                'Commercial Retail', 'Industrial', 'Investment', 'Land', 'Office',
+                'Sale Of Business', 'Store W Apt/Office',
+            ];
+
+            $selectedStyles = $propertyStyles;
+            $isDefault = empty($selectedStyles); // Empty means residential-only default
+            $allResidentialSelected = empty($selectedStyles) || count(array_intersect($residentialStyles, $selectedStyles)) === count($residentialStyles);
+            $allCommercialSelected = count(array_intersect($commercialStyles, $selectedStyles)) === count($commercialStyles);
+            $hasCommercial = count(array_intersect($commercialStyles, $selectedStyles)) > 0;
+            $selectedCount = count($selectedStyles);
+
+            if ($isDefault) {
+                $typeButtonLabel = __('Residential');
+            } elseif ($allResidentialSelected && $allCommercialSelected) {
+                $typeButtonLabel = __('All types');
+            } elseif ($allCommercialSelected && !$allResidentialSelected) {
+                $typeButtonLabel = __('Commercial');
+            } elseif ($allResidentialSelected && !$hasCommercial) {
+                $typeButtonLabel = __('Residential');
+            } elseif ($selectedCount === 1) {
+                $typeButtonLabel = $selectedStyles[0];
+            } else {
+                $typeButtonLabel = $selectedCount . ' ' . __('selected');
+            }
+
+            // Highlight when changed from default
+            $hasTypeSelection = !$isDefault;
+        @endphp
+        <flux:dropdown position="bottom" align="start">
+            <flux:button
+                variant="{{ $hasTypeSelection ? 'primary' : 'outline' }}"
+                icon:trailing="chevron-down"
+            >
+                {{ $typeButtonLabel }}
+            </flux:button>
+
+            <flux:menu class="w-72 max-h-96 overflow-y-auto p-2">
+                <div class="space-y-0.5">
+                    {{-- Quick actions --}}
+                    <div class="flex gap-2 px-2 py-1.5 mb-1">
+                        <button type="button" wire:click="selectAllStyles" class="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300">
+                            {{ __('Select all') }}
+                        </button>
+                        <span class="text-zinc-300 dark:text-zinc-600">|</span>
+                        <button type="button" wire:click="clearStyleFilters" class="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300">
+                            {{ __('Residential only') }}
+                        </button>
+                    </div>
+
+                    <div class="my-1.5 border-t border-zinc-200 dark:border-zinc-600"></div>
+
+                    {{-- Residential group header --}}
+                    <label class="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100 dark:text-white dark:hover:bg-zinc-600 cursor-pointer transition-colors">
+                        <input
+                            type="checkbox"
+                            {{ $allResidentialSelected ? 'checked' : '' }}
+                            wire:click="toggleResidentialStyles"
+                            class="size-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 dark:border-zinc-500 dark:bg-zinc-700"
+                        />
+                        {{ __('Residential') }}
+                    </label>
+                    {{-- Individual residential styles --}}
+                    @foreach ($residentialStyles as $style)
+                        <label class="flex items-center gap-2.5 rounded-md px-2 py-1.5 pl-6 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-600 cursor-pointer transition-colors">
+                            <input
+                                type="checkbox"
+                                value="{{ $style }}"
+                                wire:model.live="propertyStyles"
+                                class="size-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 dark:border-zinc-500 dark:bg-zinc-700"
+                            />
+                            {{ $style }}
+                        </label>
+                    @endforeach
+
+                    <div class="my-1.5 border-t border-zinc-200 dark:border-zinc-600"></div>
+
+                    {{-- Commercial group header --}}
+                    <label class="flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100 dark:text-white dark:hover:bg-zinc-600 cursor-pointer transition-colors">
+                        <input
+                            type="checkbox"
+                            {{ $allCommercialSelected ? 'checked' : '' }}
+                            wire:click="toggleCommercialStyles"
+                            class="size-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 dark:border-zinc-500 dark:bg-zinc-700"
+                        />
+                        {{ __('Commercial') }}
+                    </label>
+                    {{-- Individual commercial styles --}}
+                    @foreach ($commercialStyles as $style)
+                        <label class="flex items-center gap-2.5 rounded-md px-2 py-1.5 pl-6 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-600 cursor-pointer transition-colors">
+                            <input
+                                type="checkbox"
+                                value="{{ $style }}"
+                                wire:model.live="propertyStyles"
+                                class="size-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 dark:border-zinc-500 dark:bg-zinc-700"
+                            />
+                            {{ $style }}
+                        </label>
+                    @endforeach
+                </div>
+            </flux:menu>
+        </flux:dropdown>
 
         {{-- City --}}
         <x-filter-search-dropdown
